@@ -809,10 +809,10 @@ type-check@~0.3.2:
   dependencies:
     prelude-ls "~1.1.2"
 
-typescript@5.5.0:
-  version "6.0.0-dev.20251211"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-6.0.0-dev.20251211.tgz#93288e4d2bfa46b3806b81b4c9bf9b71be5110b7"
-  integrity sha512-d65nxUjT4x5FguGOaAhclGuRMZEmaShi7My4n8EseJkDjvkqwPvevabh+nzArQP2KlPv2aPTQlAEXf/bXZT3tg==
+typescript@5.7.3:
+  version "5.7.3"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.7.3.tgz#919b44a7dbb8583a9b856d162be24a54bf80073e"
+  integrity sha512-84MVSjMEHP+FQRPy3pX9sTVV/INIex71s9TL2Gm5FG/WG1SqXeKyZ0k7/blY/4FdOzI12CBy1vGc4og/eus0fw==
 
 undici-types@~7.16.0:
   version "7.16.0"
