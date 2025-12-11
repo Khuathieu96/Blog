@@ -1,6 +1,15 @@
-import { Schema, models, model } from "mongoose";
+// models/Article.ts
+import { Schema, models, model, Document } from "mongoose";
+export interface IArticle extends Document {
+  header: string;
+  slug: string;
+  tags: string[];
+  content: string;
+  images: string[];
+  createdAt: Date;
+}
 
-const ArticleSchema = new Schema({
+const ArticleSchema = new Schema<IArticle>({
   header: { type: String, required: true },
   slug: { type: String, unique: true, index: true },
   tags: { type: [String], default: [] },
@@ -9,4 +18,5 @@ const ArticleSchema = new Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-export const Article = (models.Article) ? models.Article : model("Article", ArticleSchema);
+export const Article =
+  models.Article || model<IArticle>("Article", ArticleSchema);

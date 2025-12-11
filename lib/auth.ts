@@ -1,4 +1,3 @@
-import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 
 export const authOptions = {
@@ -10,12 +9,9 @@ export const authOptions = {
   ],
   secret: process.env.NEXTAUTH_SECRET,
   callbacks: {
-    async signIn({ user }) {
+    async signIn({ user }: { user: any }) {
       // ONLY allow your email
       return user.email === (process.env.ADMIN_EMAIL || "");
     }
   }
 };
-
-const handler = NextAuth(authOptions);
-export { handler as GET, handler as POST, authOptions };
