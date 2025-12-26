@@ -4,6 +4,10 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import './markdown.css';
 
+// Force dynamic rendering for new articles to appear immediately
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function ArticlePage({
   params,
 }: {
