@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface CreateArticleDialogProps {
@@ -7,12 +7,39 @@ interface CreateArticleDialogProps {
   onClose: () => void;
 }
 
+interface Tag {
+  _id: string;
+  name: string;
+  slug: string;
+}
+
 export default function CreateArticleDialog({ isOpen, onClose }: CreateArticleDialogProps) {
   const [header, setHeader] = useState('');
   const [content, setContent] = useState('');
   const [fileName, setFileName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const router = useRouter();
+
+  // Fetch available tags when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchTags();
+    }
+  }, [isOpen]);
+
+  async function fetchTags() {
+    try {
+      const res = await fetch('/api/tags');
+      const tags = await res.json();
+      setAllTags(tags);
+    } catch (error) {
+      console.error('Failed to fetch tags:', error);
+    }
+  }
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -50,7 +77,7 @@ export default function CreateArticleDialog({ isOpen, onClose }: CreateArticleDi
       const res = await fetch('/api/article/create', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ header, content, tags: [] })
+        body: JSON.stringify({ header, content, tags: selectedTags })
       });
       
       if (res.ok) {
@@ -58,6 +85,8 @@ export default function CreateArticleDialog({ isOpen, onClose }: CreateArticleDi
         setHeader('');
         setContent('');
         setFileName('');
+        setSelectedTags([]);
+        setTagInput('');
         onClose();
         // Refresh the page to show new article
         router.refresh();
@@ -72,6 +101,35 @@ export default function CreateArticleDialog({ isOpen, onClose }: CreateArticleDi
       setIsCreating(false);
     }
   }
+
+  function addTag(tagName: string) {
+    const trimmed = tagName.trim();
+    if (trimmed && !selectedTags.includes(trimmed)) {
+      setSelectedTags([...selectedTags, trimmed]);
+      setTagInput('');
+      setShowSuggestions(false);
+    }
+  }
+
+  function removeTag(tagName: string) {
+    setSelectedTags(selectedTags.filter(t => t !== tagName));
+  }
+
+  const filteredSuggestions = tagInput.trim()
+    ? allTags.filter(tag => 
+        tag.name.toLowerCase().includes(tagInput.toLowerCase()) &&
+        !selectedTags.includes(tag.name)
+      )
+    : [];
+
+  const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (tagInput.trim()) {
+        addTag(tagInput);
+      }
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -179,6 +237,125 @@ export default function CreateArticleDialog({ isOpen, onClose }: CreateArticleDi
                 resize: 'vertical'
               }} 
             />
+          </div>
+
+          <div style={{ marginTop: 16 }}>
+            <label style={{ display: 'block', marginBottom: 8, fontWeight: 'bold' }}>
+              Tags:
+            </label>
+            
+            {/* Selected Tags */}
+            {selectedTags.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                {selectedTags.map(tag => (
+                  <span
+                    key={tag}
+                    style={{
+                      backgroundColor: '#e3f2fd',
+                      color: '#1976d2',
+                      padding: '4px 8px',
+                      borderRadius: 4,
+                      fontSize: 14,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6
+                    }}
+                  >
+                    {tag}
+                    <button
+                      onClick={() => removeTag(tag)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#1976d2',
+                        cursor: 'pointer',
+                        padding: 0,
+                        fontSize: 16,
+                        lineHeight: 1
+                      }}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Tag Input with Autocomplete */}
+            <div style={{ position: 'relative' }}>
+              <input 
+                type="text"
+                placeholder="Type to search or add new tag..." 
+                value={tagInput} 
+                onChange={e => {
+                  setTagInput(e.target.value);
+                  setShowSuggestions(true);
+                }}
+                onKeyDown={handleTagInputKeyDown}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                style={{ 
+                  width: '100%', 
+                  padding: 8, 
+                  fontSize: 14,
+                  border: '1px solid #ddd',
+                  borderRadius: 4
+                }} 
+              />
+              
+              {/* Autocomplete Dropdown */}
+              {showSuggestions && (filteredSuggestions.length > 0 || tagInput.trim()) && (
+                <div style={{
+                  position: 'absolute',
+                  bottom: '100%',
+                  left: 0,
+                  right: 0,
+                  backgroundColor: 'white',
+                  border: '1px solid #ddd',
+                  borderRadius: 4,
+                  marginBottom: 4,
+                  maxHeight: 200,
+                  overflowY: 'auto',
+                  zIndex: 1000,
+                  boxShadow: '0 -4px 6px rgba(0,0,0,0.1)'
+                }}>
+                  {filteredSuggestions.length > 0 ? (
+                    filteredSuggestions.map(tag => (
+                      <div
+                        key={tag._id}
+                        onClick={() => addTag(tag.name)}
+                        style={{
+                          padding: '8px 12px',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid #f0f0f0'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                      >
+                        {tag.name}
+                      </div>
+                    ))
+                  ) : tagInput.trim() && (
+                    <div
+                      onClick={() => addTag(tagInput)}
+                      style={{
+                        padding: '8px 12px',
+                        cursor: 'pointer',
+                        color: '#0070f3',
+                        fontStyle: 'italic'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                    >
+                      + Create new tag "{tagInput}"
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+              Press Enter to add a tag
+            </div>
           </div>
 
           <div style={{ marginTop: 20, display: 'flex', gap: 12, justifyContent: 'flex-end' }}>

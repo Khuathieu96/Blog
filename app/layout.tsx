@@ -11,15 +11,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang='en'>
-      <body>
-        <header style={{ padding: '12px', borderBottom: '1px solid #eee' }}>
+    <html lang='en' style={{ height: '100%', overflow: 'hidden' }}>
+      <body style={{ height: '100%', margin: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <header style={{ padding: '12px', borderBottom: '1px solid #eee', flexShrink: 0 }}>
           <a href='/' style={{ fontWeight: 700 }}>
             My Blog
           </a>{' '}
           | <a href='/me'>About</a>
         </header>
-        <main style={{ padding: '24px' }}>{children}</main>
+        <main style={{ padding: '24px', flex: 1, overflow: 'hidden' }}>{children}</main>
       </body>
     </html>
   );

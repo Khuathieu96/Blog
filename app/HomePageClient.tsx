@@ -10,6 +10,12 @@ interface Article {
   tags?: string[];
 }
 
+interface Tag {
+  _id: string;
+  name: string;
+  slug: string;
+}
+
 function highlightText(text: string, query: string): JSX.Element {
   if (!query.trim()) return <>{text}</>;
   
@@ -88,8 +94,23 @@ export default function HomePageClient({ articles }: { articles: Article[] }) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Article[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
+  // Fetch all tags on mount
+  useEffect(() => {
+    fetchTags();
+  }, []);
+
+  async function fetchTags() {
+    try {
+      const res = await fetch('/api/tags');
+      const tags = await res.json();
+      setAllTags(tags);
+    } catch (error) {
+      console.error('Failed to fetch tags:', error);
+    }
+  }
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
@@ -114,17 +135,34 @@ export default function HomePageClient({ articles }: { articles: Article[] }) {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const displayArticles = searchQuery.trim() ? searchResults : articles;
+  const displayArticles = searchQuery.trim() 
+    ? searchResults 
+    : selectedTags.length > 0
+    ? articles.filter(a => a.tags?.some(tag => selectedTags.includes(tag)))
+    : articles;
   const hasQuery = searchQuery.trim().length > 0;
+
+  function toggleTag(tagName: string) {
+    if (selectedTags.includes(tagName)) {
+      setSelectedTags(selectedTags.filter(t => t !== tagName));
+    } else {
+      setSelectedTags([...selectedTags, tagName]);
+    }
+    setSearchQuery('');
+  }
 
   return (
     <>
-      <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 16 }}>
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* Search Bar and Create Button */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 16, flexShrink: 0 }}>
           <input 
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setSelectedTags([]); // Clear tag filter when searching
+            }}
             placeholder="Search articles by title, tags, or content..."
             style={{
               flex: 1,
@@ -153,17 +191,74 @@ export default function HomePageClient({ articles }: { articles: Article[] }) {
           </button>
         </div>
 
-        {searchQuery.trim() && (
-          <div style={{ marginBottom: 12, color: '#666', fontSize: 14 }}>
+        {/* Tags List */}
+        {allTags.length > 0 && (
+          <div style={{ 
+            marginBottom: 20, 
+            paddingBottom: 16,
+            borderBottom: '2px solid #e0e0e0',
+            flexShrink: 0
+          }}>
+            <div style={{ 
+              display: 'flex', 
+              flexWrap: 'wrap', 
+              gap: 8,
+              alignItems: 'center'
+            }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#666', marginRight: 8 }}>
+                Tags:
+              </span>
+              {allTags.map(tag => (
+                <button
+                  key={tag._id}
+                  onClick={() => toggleTag(tag.name)}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: 13,
+                    borderRadius: 4,
+                    border: selectedTags.includes(tag.name) ? '2px solid #0070f3' : '2px solid transparent',
+                    outline: selectedTags.includes(tag.name) ? 'none' : '1px solid #ddd',
+                    outlineOffset: '-2px',
+                    backgroundColor: selectedTags.includes(tag.name) ? '#e3f2fd' : 'white',
+                    color: selectedTags.includes(tag.name) ? '#0070f3' : '#666',
+                    cursor: 'pointer',
+                    fontWeight: 500,
+                    transition: 'all 0.2s',
+                    boxSizing: 'border-box'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!selectedTags.includes(tag.name)) {
+                      e.currentTarget.style.backgroundColor = '#f5f5f5';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!selectedTags.includes(tag.name)) {
+                      e.currentTarget.style.backgroundColor = 'white';
+                    }
+                  }}
+                >
+                  {tag.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Results Info */}
+        {(searchQuery.trim() || selectedTags.length > 0) && (
+          <div style={{ marginBottom: 12, color: '#666', fontSize: 14, flexShrink: 0 }}>
             {isSearching ? (
               'Searching...'
+            ) : selectedTags.length > 0 ? (
+              `Showing ${displayArticles.length} article${displayArticles.length !== 1 ? 's' : ''} with tags: ${selectedTags.join(', ')}`
             ) : (
               `Found ${displayArticles.length} article${displayArticles.length !== 1 ? 's' : ''}`
             )}
           </div>
         )}
 
-        <div style={{marginTop:16}}>
+        {/* Articles List */}
+        <div style={{ flex: 1, overflowY: 'auto', marginTop: 16 }}>
           {displayArticles.length > 0 ? (
             displayArticles.map((a) => {
               const { preview, inContent } = hasQuery ? getContentPreview(a, searchQuery) : { preview: '', inContent: false };
