@@ -17,8 +17,7 @@ export default function RootLayout({
           <a href='/' style={{ fontWeight: 700 }}>
             My Blog
           </a>{' '}
-          | <a href='/me'>About</a> | <a href='/search'>Search</a> |{' '}
-          <a href='/dashboard'>Dashboard</a>
+          | <a href='/me'>About</a>
         </header>
         <main style={{ padding: '24px' }}>{children}</main>
       </body>
