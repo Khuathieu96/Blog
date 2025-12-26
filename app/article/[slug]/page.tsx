@@ -18,10 +18,10 @@ export default async function ArticlePage({
   if (!art) return <div>Not found</div>;
 
   return (
-    <article style={{ maxWidth: 800, margin: '0 auto', padding: 20 }}>
-      <h1 style={{ fontSize: '2.5em', marginBottom: 16 }}>{art.header}</h1>
+    <article style={{ maxWidth: 800, margin: '0 auto', padding: 20, height: '100%', overflowY: 'auto' }}>
+      <h1 style={{ fontSize: '1.8em', marginBottom: 16 }}>{art.header}</h1>
       
-      <div style={{ fontSize: 14, color: '#666', marginBottom: 24 }}>
+      <div style={{ fontSize: 13, color: '#666', marginBottom: 24 }}>
         {art.createdAt && new Date(art.createdAt).toLocaleDateString('en-US', { 
           year: 'numeric', 
           month: 'long', 
@@ -46,7 +46,7 @@ export default async function ArticlePage({
                 padding: '4px 12px',
                 margin: '4px',
                 borderRadius: 4,
-                fontSize: 14
+                fontSize: 13
               }}
             >
               {tag}

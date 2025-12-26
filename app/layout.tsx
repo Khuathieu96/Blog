@@ -12,7 +12,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang='en' style={{ height: '100%', overflow: 'hidden' }}>
-      <body style={{ height: '100%', margin: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <body style={{ 
+        height: '100%', 
+        margin: 0, 
+        overflow: 'hidden', 
+        display: 'flex', 
+        flexDirection: 'column',
+        fontFamily: '"Palatino Linotype", Palatino, "Book Antiqua", Baskerville, "Times New Roman", serif'
+      }}>
         <header style={{ padding: '12px', borderBottom: '1px solid #eee', flexShrink: 0 }}>
           <a href='/' style={{ fontWeight: 700 }}>
             My Blog

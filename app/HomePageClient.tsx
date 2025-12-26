@@ -167,7 +167,7 @@ export default function HomePageClient({ articles }: { articles: Article[] }) {
             style={{
               flex: 1,
               padding: '10px 16px',
-              fontSize: 16,
+              fontSize: 14,
               border: '1px solid #ddd',
               borderRadius: 5,
               outline: 'none'
@@ -181,7 +181,7 @@ export default function HomePageClient({ articles }: { articles: Article[] }) {
               color: 'white',
               border: 'none',
               borderRadius: 5,
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: 600,
               cursor: 'pointer',
               whiteSpace: 'nowrap'
@@ -205,7 +205,7 @@ export default function HomePageClient({ articles }: { articles: Article[] }) {
               gap: 8,
               alignItems: 'center'
             }}>
-              <span style={{ fontSize: 14, fontWeight: 600, color: '#666', marginRight: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#666', marginRight: 8 }}>
                 Tags:
               </span>
               {allTags.map(tag => (
@@ -224,7 +224,8 @@ export default function HomePageClient({ articles }: { articles: Article[] }) {
                     cursor: 'pointer',
                     fontWeight: 500,
                     transition: 'all 0.2s',
-                    boxSizing: 'border-box'
+                    boxSizing: 'border-box',
+                    fontFamily: 'inherit'
                   }}
                   onMouseEnter={(e) => {
                     if (!selectedTags.includes(tag.name)) {
@@ -246,7 +247,7 @@ export default function HomePageClient({ articles }: { articles: Article[] }) {
 
         {/* Results Info */}
         {(searchQuery.trim() || selectedTags.length > 0) && (
-          <div style={{ marginBottom: 12, color: '#666', fontSize: 14, flexShrink: 0 }}>
+          <div style={{ marginBottom: 12, color: '#666', fontSize: 13, flexShrink: 0 }}>
             {isSearching ? (
               'Searching...'
             ) : selectedTags.length > 0 ? (
@@ -268,7 +269,7 @@ export default function HomePageClient({ articles }: { articles: Article[] }) {
                   <a 
                     href={`/article/${a.slug}`} 
                     style={{
-                      fontSize: 18,
+                      fontSize: 16,
                       fontWeight: 600,
                       color: hasQuery ? '#0070f3' : 'inherit',
                       textDecoration: 'none',
@@ -281,7 +282,7 @@ export default function HomePageClient({ articles }: { articles: Article[] }) {
                   
                   {hasQuery && preview && (
                     <div style={{
-                      fontSize: 14,
+                      fontSize: 13,
                       color: '#666',
                       lineHeight: 1.6,
                       marginBottom: 8,
