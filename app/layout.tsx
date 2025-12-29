@@ -1,4 +1,5 @@
 // import './globals.css'; error when yarn build
+import Navbar from '@/components/Navbar';
 
 export const metadata = {
   title: 'My Blog',
@@ -12,21 +13,21 @@ export default function RootLayout({
 }) {
   return (
     <html lang='en' style={{ height: '100%', overflow: 'hidden' }}>
-      <body style={{ 
-        height: '100%', 
-        margin: 0, 
-        overflow: 'hidden', 
-        display: 'flex', 
-        flexDirection: 'column',
-        fontFamily: '"Palatino Linotype", Palatino, "Book Antiqua", Baskerville, "Times New Roman", serif'
-      }}>
-        <header style={{ padding: '12px', borderBottom: '1px solid #eee', flexShrink: 0 }}>
-          <a href='/' style={{ fontWeight: 700 }}>
-            My Blog
-          </a>{' '}
-          | <a href='/me'>About</a>
-        </header>
-        <main style={{ padding: '24px', flex: 1, overflow: 'hidden' }}>{children}</main>
+      <body
+        style={{
+          height: '100%',
+          margin: 0,
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          fontFamily:
+            '"Palatino Linotype", Palatino, "Book Antiqua", Baskerville, "Times New Roman", serif',
+        }}
+      >
+        <Navbar />
+        <main style={{ padding: '20px', flex: 1, overflow: 'hidden', maxWidth: '800px', width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
+          {children}
+        </main>
       </body>
     </html>
   );
