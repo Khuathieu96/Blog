@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import CreateArticleDialog from '@/components/CreateArticleDialog';
 
@@ -17,7 +17,7 @@ interface Tag {
   slug: string;
 }
 
-function highlightText(text: string, query: string): JSX.Element {
+function highlightText(text: string, query: string): React.ReactElement {
   if (!query.trim()) return <>{text}</>;
 
   const parts = text.split(new RegExp(`(${query})`, 'gi'));
