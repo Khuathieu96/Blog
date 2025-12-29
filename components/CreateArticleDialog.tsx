@@ -138,7 +138,9 @@ export default function CreateArticleDialog({
           // Refresh the page
           router.refresh();
         } else {
-          setNotification(`Error updating article: ${data.error || 'Please try again'}`);
+          setNotification(
+            `Error updating article: ${data.error || 'Please try again'}`,
+          );
           setTimeout(() => {
             setNotification(null);
             onClose();
@@ -564,7 +566,7 @@ export default function CreateArticleDialog({
           `}</style>
         </div>
       </div>
-      
+
       {/* Notification Popup */}
       {notification && (
         <div

@@ -16,7 +16,7 @@ const NoteSchema = new Schema<INote>({
 });
 
 // Update the updatedAt field on save
-NoteSchema.pre('save', function(next) {
+NoteSchema.pre('save', function (next) {
   this.updatedAt = new Date();
   next();
 });

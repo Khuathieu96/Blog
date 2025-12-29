@@ -7,10 +7,10 @@ import { Note } from "@/models/DailyNote";
 export async function GET(req: Request) {
   try {
     await connectDB();
-    
+
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search") || "";
-    
+
     let query = {};
     if (search.trim()) {
       query = {
@@ -20,7 +20,7 @@ export async function GET(req: Request) {
         ]
       };
     }
-    
+
     const notes = await Note.find(query).sort({ createdAt: -1 });
     return NextResponse.json(notes);
   } catch (error) {
@@ -36,24 +36,24 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     await connectDB();
-    
+
     const body = await req.json();
     const { header, content } = body;
-    
+
     if (!header || !header.trim()) {
       return NextResponse.json(
         { error: "Header is required" },
         { status: 400 }
       );
     }
-    
+
     const note = await Note.create({
       header: header.trim(),
       content: content || "",
       createdAt: new Date(),
       updatedAt: new Date()
     });
-    
+
     return NextResponse.json(note, { status: 201 });
   } catch (error) {
     console.error("Error creating daily note:", error);
