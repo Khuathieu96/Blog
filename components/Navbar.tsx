@@ -25,6 +25,9 @@ export default function Navbar() {
           <Link href='/daily-note' className='nav-icon' title='Daily Notes'>
             Note
           </Link>
+          <Link href='/sticky-board' className='nav-icon' title='Sticky Board'>
+            Stickies
+          </Link>
         </div>
         <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
           <button

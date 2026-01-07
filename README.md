@@ -9,5 +9,6 @@ This is a minimal skeleton for a personal blog using Next.js (App Router), TypeS
 3. `npm run dev`
 
 Notes:
+
 - Set `ADMIN_EMAIL` in environment to restrict admin access.
 - Cloudinary upload expects base64 in `/api/upload`.
