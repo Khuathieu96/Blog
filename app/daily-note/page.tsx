@@ -1,5 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
 
 interface DailyNote {
   _id: string;
@@ -20,6 +22,15 @@ export default function DailyNotePage() {
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const router = useRouter();
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.push('/');
+    }
+  }, [isAuthenticated, authLoading, router]);
 
   // Fetch notes
   const fetchNotes = async (searchQuery = '') => {
@@ -64,14 +75,13 @@ export default function DailyNotePage() {
   };
 
   const handleDelete = async (note: DailyNote) => {
-    const password = prompt('Enter password to delete:');
-    if (!password) return;
+    if (!confirm('Are you sure you want to delete this note?')) return;
 
     try {
       const res = await fetch('/api/daily-note/delete', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: note._id, password }),
+        body: JSON.stringify({ id: note._id }),
       });
 
       if (!res.ok) {
@@ -97,6 +107,10 @@ export default function DailyNotePage() {
     setEditNote(null);
     setIsDialogOpen(true);
   };
+
+  if (!isAuthenticated) {
+    return null; // Don't render while redirecting
+  }
 
   const handleDialogClose = () => {
     setIsDialogOpen(false);

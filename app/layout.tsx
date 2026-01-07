@@ -1,5 +1,6 @@
 // import './globals.css'; error when yarn build
 import Navbar from '@/components/Navbar';
+import { AuthProvider } from '@/contexts/AuthContext';
 
 export const metadata = {
   title: 'My Blog',
@@ -24,20 +25,22 @@ export default function RootLayout({
             '"Palatino Linotype", Palatino, "Book Antiqua", Baskerville, "Times New Roman", serif',
         }}
       >
-        <Navbar />
-        <main
-          style={{
-            padding: '20px',
-            flex: 1,
-            overflow: 'hidden',
-            maxWidth: '800px',
-            width: '100%',
-            margin: '0 auto',
-            boxSizing: 'border-box',
-          }}
-        >
-          {children}
-        </main>
+        <AuthProvider>
+          <Navbar />
+          <main
+            style={{
+              padding: '20px',
+              flex: 1,
+              overflow: 'hidden',
+              maxWidth: '800px',
+              width: '100%',
+              margin: '0 auto',
+              boxSizing: 'border-box',
+            }}
+          >
+            {children}
+          </main>
+        </AuthProvider>
       </body>
     </html>
   );

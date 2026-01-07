@@ -107,18 +107,11 @@ export default function CreateArticleDialog({
     try {
       if (isEditMode && article) {
         // Update existing article
-        const password = prompt('Enter password to update article:');
-        if (!password) {
-          setIsCreating(false);
-          return;
-        }
-
         const res = await fetch('/api/article/update', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             id: article._id,
-            password,
             header,
             content,
             tags: selectedTags,

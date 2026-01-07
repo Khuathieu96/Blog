@@ -1,10 +1,19 @@
 'use client';
 import Link from 'next/link';
 import { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
 import CreateArticleDialog from './CreateArticleDialog';
 
 export default function Navbar() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const { user, logout, isAuthenticated } = useAuth();
+  const router = useRouter();
+
+  const handleLogout = () => {
+    logout();
+    router.push('/');
+  };
 
   return (
     <>
@@ -22,21 +31,47 @@ export default function Navbar() {
           <Link href='/' className='nav-icon' title='My Blog'>
             Home
           </Link>
-          <Link href='/daily-note' className='nav-icon' title='Daily Notes'>
-            Note
-          </Link>
+          {isAuthenticated && (
+            <>
+              <Link href='/daily-note' className='nav-icon' title='Daily Notes'>
+                Note
+              </Link>
+              <Link
+                href='/registers'
+                className='nav-icon'
+                title='Registration Requests'
+              >
+                Registers
+              </Link>
+            </>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-          <button
-            onClick={() => setIsDialogOpen(true)}
-            className='nav-icon'
-            title='Create Article'
-          >
-            +
-          </button>
+          {isAuthenticated && (
+            <button
+              onClick={() => setIsDialogOpen(true)}
+              className='nav-icon'
+              title='Create Article'
+            >
+              +
+            </button>
+          )}
           <Link href='/me' className='nav-icon' title='About Me'>
             Me
           </Link>
+          {isAuthenticated ? (
+            <button
+              onClick={handleLogout}
+              className='nav-icon'
+              title='Sign Out'
+            >
+              🚪
+            </button>
+          ) : (
+            <Link href='/signin' className='nav-icon' title='Sign In'>
+              Sign in
+            </Link>
+          )}
         </div>
       </nav>
 

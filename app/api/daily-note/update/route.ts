@@ -3,21 +3,12 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
 import { Note } from "@/models/DailyNote";
 
-const ADMIN_PASSWORD = "090696";
-
 export async function PUT(req: Request) {
   try {
     await connectDB();
 
     const body = await req.json();
-    const { id, header, content, password } = body;
-
-    if (password !== ADMIN_PASSWORD) {
-      return NextResponse.json(
-        { error: "Invalid password" },
-        { status: 401 }
-      );
-    }
+    const { id, header, content } = body;
 
     if (!id) {
       return NextResponse.json(

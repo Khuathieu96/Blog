@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "cloudinary": "1.36.0",
     "dotenv": "^17.2.3",
     "mongoose": "7.6.0",
@@ -22,6 +23,7 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^3.0.0",
     "@types/node": "20.4.2",
     "@types/react": "^19.0.0",
     "typescript": "5.7.3"

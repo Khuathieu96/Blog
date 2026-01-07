@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import CreateArticleDialog from '@/components/CreateArticleDialog';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Article {
   _id: string;
@@ -105,6 +106,7 @@ function getContentPreview(
 }
 
 export default function HomePageClient({ articles }: { articles: Article[] }) {
+  const { isAuthenticated } = useAuth();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingArticle, setEditingArticle] = useState<Article | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -175,18 +177,12 @@ export default function HomePageClient({ articles }: { articles: Article[] }) {
     e.preventDefault();
     e.stopPropagation();
 
-    const password = prompt('Enter password to delete this article:');
-    if (!password) return;
+    if (!confirm('Are you sure you want to delete this article?')) return;
 
     try {
-      const res = await fetch(
-        `/api/article/delete?id=${article._id}&password=${encodeURIComponent(
-          password,
-        )}`,
-        {
-          method: 'DELETE',
-        },
-      );
+      const res = await fetch(`/api/article/delete?id=${article._id}`, {
+        method: 'DELETE',
+      });
 
       const data = await res.json();
 
@@ -381,31 +377,33 @@ export default function HomePageClient({ articles }: { articles: Article[] }) {
                     </a>
 
                     {/* Edit and Delete Buttons */}
-                    <div
-                      className='article-actions'
-                      style={{
-                        display: 'flex',
-                        gap: 4,
-                        flexShrink: 0,
-                        opacity: 0,
-                        transition: 'opacity 0.2s',
-                      }}
-                    >
-                      <button
-                        onClick={(e) => handleEditArticle(a, e)}
-                        title='Edit article'
-                        className='article-icon-btn'
+                    {isAuthenticated && (
+                      <div
+                        className='article-actions'
+                        style={{
+                          display: 'flex',
+                          gap: 4,
+                          flexShrink: 0,
+                          opacity: 0,
+                          transition: 'opacity 0.2s',
+                        }}
                       >
-                        ✎
-                      </button>
-                      <button
-                        onClick={(e) => handleDeleteArticle(a, e)}
-                        title='Delete article'
-                        className='article-icon-btn'
-                      >
-                        ✕
-                      </button>
-                    </div>
+                        <button
+                          onClick={(e) => handleEditArticle(a, e)}
+                          title='Edit article'
+                          className='article-icon-btn'
+                        >
+                          ✎
+                        </button>
+                        <button
+                          onClick={(e) => handleDeleteArticle(a, e)}
+                          title='Delete article'
+                          className='article-icon-btn'
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {hasQuery && preview && (

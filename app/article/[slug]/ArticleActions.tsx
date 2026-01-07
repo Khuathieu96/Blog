@@ -2,6 +2,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import CreateArticleDialog from '@/components/CreateArticleDialog';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Article {
   _id: string;
@@ -13,22 +14,17 @@ interface Article {
 
 export default function ArticleActions({ article }: { article: Article }) {
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
 
   async function handleDelete() {
-    const password = prompt('Enter password to delete this article:');
-    if (!password) return;
+    if (!confirm('Are you sure you want to delete this article?')) return;
 
     try {
-      const res = await fetch(
-        `/api/article/delete?id=${article._id}&password=${encodeURIComponent(
-          password,
-        )}`,
-        {
-          method: 'DELETE',
-        },
-      );
+      const res = await fetch(`/api/article/delete?id=${article._id}`, {
+        method: 'DELETE',
+      });
 
       const data = await res.json();
 
@@ -55,28 +51,34 @@ export default function ArticleActions({ article }: { article: Article }) {
 
   return (
     <>
-      <div
-        className='article-actions'
-        style={{
-          display: 'flex',
-          gap: 4,
-          flexShrink: 0,
-          marginLeft: 16,
-          opacity: 0,
-          transition: 'opacity 0.2s',
-        }}
-      >
-        <button onClick={handleEdit} title='Edit article' className='icon-btn'>
-          ✎
-        </button>
-        <button
-          onClick={handleDelete}
-          title='Delete article'
-          className='icon-btn'
+      {isAuthenticated && (
+        <div
+          className='article-actions'
+          style={{
+            display: 'flex',
+            gap: 4,
+            flexShrink: 0,
+            marginLeft: 16,
+            opacity: 0,
+            transition: 'opacity 0.2s',
+          }}
         >
-          ✕
-        </button>
-      </div>
+          <button
+            onClick={handleEdit}
+            title='Edit article'
+            className='icon-btn'
+          >
+            ✎
+          </button>
+          <button
+            onClick={handleDelete}
+            title='Delete article'
+            className='icon-btn'
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <CreateArticleDialog
         isOpen={isEditDialogOpen}
