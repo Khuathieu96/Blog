@@ -1,10 +1,20 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
 import { Article } from "@/models/Article";
 import { Tag } from "@/models/Tag";
+import { validateAuth } from "@/lib/auth-utils";
 
-export async function PUT(req: Request) {
+export async function PUT(req: NextRequest) {
   try {
+    // Validate authentication
+    const auth = await validateAuth(req);
+    if (!auth.isValid) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+    
     await connectDB();
     const body = await req.json();
     const { id, header, content, tags } = body;

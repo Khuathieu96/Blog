@@ -38,8 +38,8 @@ export default function SignInPage() {
         return;
       }
 
-      // Use auth context to login
-      login(data.user);
+      // Use auth context to login with token
+      login(data.user, data.token);
 
       // Redirect to home
       router.push('/');

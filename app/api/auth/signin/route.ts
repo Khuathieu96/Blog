@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
 import { User } from "@/models/User";
 import bcrypt from "bcryptjs";
+import { generateAuthToken } from "@/lib/auth-utils";
 
 export async function POST(req: Request) {
   try {
@@ -44,14 +45,18 @@ export async function POST(req: Request) {
       );
     }
 
-    // Return user info (without password)
+    // Generate auth token
+    const token = generateAuthToken(user.email);
+    
+    // Return user info (without password) and token
     return NextResponse.json({
       message: "Sign in successful",
       user: {
         id: user._id,
         name: user.name,
         email: user.email
-      }
+      },
+      token
     });
   } catch (error) {
     console.error("Error signing in:", error);

@@ -14,25 +14,36 @@ export default function RegistersPage() {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, getAuthHeaders } = useAuth();
 
   // Redirect if not logged in
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!authLoading && !isAuthenticated) {
       router.push('/signin');
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, authLoading, router]);
 
-  // Fetch registration requests
+  // Fetch registration requests - only if authenticated
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !authLoading) {
       fetchRegistrations();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, authLoading]);
 
   async function fetchRegistrations() {
+    if (!isAuthenticated) return; // Don't fetch if not authenticated
+    
     try {
-      const res = await fetch('/api/register');
+      const res = await fetch('/api/register', {
+        headers: getAuthHeaders()
+      });
+      
+      // Check for auth errors
+      if (res.status === 401) {
+        router.push('/signin');
+        return;
+      }
+      
       if (res.ok) {
         const data = await res.json();
         setRegistrations(data);
@@ -44,6 +55,12 @@ export default function RegistersPage() {
     }
   }
 
+  // Show loading while checking authentication
+  if (authLoading) {
+    return null;
+  }
+
+  // Don't render if not authenticated
   if (!isAuthenticated) {
     return null;
   }

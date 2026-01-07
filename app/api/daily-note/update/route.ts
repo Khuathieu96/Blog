@@ -1,10 +1,20 @@
 // API route for updating a daily note
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
 import { Note } from "@/models/DailyNote";
+import { validateAuth } from "@/lib/auth-utils";
 
-export async function PUT(req: Request) {
+export async function PUT(req: NextRequest) {
   try {
+    // Validate authentication
+    const auth = await validateAuth(req);
+    if (!auth.isValid) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+    
     await connectDB();
 
     const body = await req.json();

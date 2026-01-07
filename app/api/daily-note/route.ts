@@ -1,11 +1,21 @@
 // API route for creating and listing daily notes
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
 import { Note } from "@/models/DailyNote";
+import { validateAuth } from "@/lib/auth-utils";
 
 // GET - List all daily notes (sorted by newest first)
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
+    // Validate authentication
+    const auth = await validateAuth(req);
+    if (!auth.isValid) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+    
     await connectDB();
 
     const { searchParams } = new URL(req.url);
@@ -33,8 +43,17 @@ export async function GET(req: Request) {
 }
 
 // POST - Create a new daily note
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    // Validate authentication
+    const auth = await validateAuth(req);
+    if (!auth.isValid) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+    
     await connectDB();
 
     const body = await req.json();

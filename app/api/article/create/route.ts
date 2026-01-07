@@ -1,10 +1,20 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
 import { Article } from "@/models/Article";
 import { Tag } from "@/models/Tag";
 import { customAlphabet } from "nanoid";
+import { validateAuth } from "@/lib/auth-utils";
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  // Validate authentication
+  const auth = await validateAuth(req);
+  if (!auth.isValid) {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401 }
+    );
+  }
+  
   await connectDB();
   const data = await req.json();
   if (!data?.header) return NextResponse.json({ error: "header required" }, { status: 400 });

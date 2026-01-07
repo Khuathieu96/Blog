@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
 import { Register } from "@/models/Register";
+import { validateAuth } from "@/lib/auth-utils";
 
 export async function POST(req: Request) {
   try {
@@ -47,8 +48,17 @@ export async function POST(req: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    // Validate authentication - only authenticated users can view registrations
+    const auth = await validateAuth(req);
+    if (!auth.isValid) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+    
     await connectDB();
     const registrations = await Register.find().sort({ createdAt: -1 });
     return NextResponse.json(registrations);

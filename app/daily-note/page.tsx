@@ -22,24 +22,35 @@ export default function DailyNotePage() {
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, getAuthHeaders } = useAuth();
   const router = useRouter();
 
-  // Redirect if not authenticated
+  // Redirect if not authenticated - must happen before any data fetch
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push('/');
     }
   }, [isAuthenticated, authLoading, router]);
 
-  // Fetch notes
+  // Fetch notes - only if authenticated
   const fetchNotes = async (searchQuery = '') => {
+    if (!isAuthenticated) return; // Don't fetch if not authenticated
+    
     try {
       setIsLoading(true);
       const url = searchQuery
         ? `/api/daily-note?search=${encodeURIComponent(searchQuery)}`
         : '/api/daily-note';
-      const res = await fetch(url);
+      const res = await fetch(url, {
+        headers: getAuthHeaders()
+      });
+      
+      // Check for auth errors
+      if (res.status === 401) {
+        router.push('/');
+        return;
+      }
+      
       const data = await res.json();
       setNotes(data);
     } catch (error) {
@@ -50,12 +61,17 @@ export default function DailyNotePage() {
     }
   };
 
+  // Only fetch notes when authenticated
   useEffect(() => {
-    fetchNotes();
-  }, []);
+    if (isAuthenticated && !authLoading) {
+      fetchNotes();
+    }
+  }, [isAuthenticated, authLoading]);
 
-  // Debounced search
+  // Debounced search - only if authenticated
   useEffect(() => {
+    if (!isAuthenticated) return; // Don't search if not authenticated
+    
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
@@ -67,7 +83,7 @@ export default function DailyNotePage() {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [search]);
+  }, [search, isAuthenticated]);
 
   const showNotification = (message: string, type: 'success' | 'error') => {
     setNotification({ message, type });
@@ -108,8 +124,14 @@ export default function DailyNotePage() {
     setIsDialogOpen(true);
   };
 
+  // Show loading while checking authentication
+  if (authLoading) {
+    return null;
+  }
+
+  // Don't render if not authenticated
   if (!isAuthenticated) {
-    return null; // Don't render while redirecting
+    return null;
   }
 
   const handleDialogClose = () => {
