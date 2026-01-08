@@ -3,16 +3,24 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 
+interface Folder {
+  _id: string;
+  name: string;
+  isCollapsed: boolean;
+}
+
 interface DailyNote {
   _id: string;
   header: string;
   content: string;
+  folder: Folder | string;
   createdAt: string;
   updatedAt: string;
 }
 
 export default function DailyNotePage() {
   const [notes, setNotes] = useState<DailyNote[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
   const [search, setSearch] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editNote, setEditNote] = useState<DailyNote | null>(null);
@@ -21,20 +29,44 @@ export default function DailyNotePage() {
     type: 'success' | 'error';
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
+  const [editingFolderName, setEditingFolderName] = useState('');
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { isAuthenticated, isLoading: authLoading, getAuthHeaders } = useAuth();
   const router = useRouter();
 
-  // Redirect if not authenticated - must happen before any data fetch
+  // Redirect if not authenticated
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push('/');
     }
   }, [isAuthenticated, authLoading, router]);
 
-  // Fetch notes - only if authenticated
+  // Fetch folders
+  const fetchFolders = async () => {
+    if (!isAuthenticated) return;
+    
+    try {
+      const res = await fetch('/api/note-folder', {
+        headers: getAuthHeaders()
+      });
+      
+      if (res.status === 401) {
+        router.push('/');
+        return;
+      }
+      
+      const data = await res.json();
+      setFolders(data);
+    } catch (error) {
+      console.error('Error fetching folders:', error);
+      showNotification('Failed to fetch folders', 'error');
+    }
+  };
+
+  // Fetch notes
   const fetchNotes = async (searchQuery = '') => {
-    if (!isAuthenticated) return; // Don't fetch if not authenticated
+    if (!isAuthenticated) return;
     
     try {
       setIsLoading(true);
@@ -45,7 +77,6 @@ export default function DailyNotePage() {
         headers: getAuthHeaders()
       });
       
-      // Check for auth errors
       if (res.status === 401) {
         router.push('/');
         return;
@@ -61,16 +92,17 @@ export default function DailyNotePage() {
     }
   };
 
-  // Only fetch notes when authenticated
+  // Fetch both folders and notes on mount
   useEffect(() => {
     if (isAuthenticated && !authLoading) {
+      fetchFolders();
       fetchNotes();
     }
   }, [isAuthenticated, authLoading]);
 
-  // Debounced search - only if authenticated
+  // Debounced search
   useEffect(() => {
-    if (!isAuthenticated) return; // Don't search if not authenticated
+    if (!isAuthenticated) return;
     
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
@@ -124,6 +156,80 @@ export default function DailyNotePage() {
     setIsDialogOpen(true);
   };
 
+  const toggleFolderCollapse = async (folder: Folder) => {
+    try {
+      const res = await fetch('/api/note-folder', {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({
+          id: folder._id,
+          isCollapsed: !folder.isCollapsed
+        }),
+      });
+
+      if (!res.ok) {
+        showNotification('Failed to update folder', 'error');
+        return;
+      }
+
+      // Update local state
+      setFolders(folders.map(f => 
+        f._id === folder._id ? { ...f, isCollapsed: !f.isCollapsed } : f
+      ));
+    } catch (error) {
+      console.error('Error toggling folder:', error);
+      showNotification('Failed to update folder', 'error');
+    }
+  };
+
+  const startEditingFolder = (folder: Folder) => {
+    setEditingFolderId(folder._id);
+    setEditingFolderName(folder.name);
+  };
+
+  const saveEditingFolder = async (folderId: string) => {
+    if (!editingFolderName.trim()) {
+      showNotification('Folder name cannot be empty', 'error');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/note-folder', {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({
+          id: folderId,
+          name: editingFolderName.trim()
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        showNotification(data.error || 'Failed to update folder', 'error');
+        return;
+      }
+
+      showNotification('Folder updated', 'success');
+      setEditingFolderId(null);
+      setEditingFolderName('');
+      fetchFolders();
+    } catch (error) {
+      console.error('Error updating folder:', error);
+      showNotification('Failed to update folder', 'error');
+    }
+  };
+
+  const cancelEditingFolder = () => {
+    setEditingFolderId(null);
+    setEditingFolderName('');
+  };
+
   // Show loading while checking authentication
   if (authLoading) {
     return null;
@@ -142,6 +248,7 @@ export default function DailyNotePage() {
   const handleSaveSuccess = () => {
     handleDialogClose();
     fetchNotes(search);
+    fetchFolders();
     showNotification(editNote ? 'Note updated' : 'Note created', 'success');
   };
 
@@ -174,6 +281,14 @@ export default function DailyNotePage() {
     return preview.length > 80 ? preview.substring(0, 80) + '...' : preview;
   };
 
+  // Group notes by folder
+  const notesByFolder = folders.map(folder => ({
+    folder,
+    notes: notes.filter(note => 
+      typeof note.folder === 'object' ? note.folder._id === folder._id : note.folder === folder._id
+    )
+  }));
+
   return (
     <div className='container'>
       {/* Header */}
@@ -200,34 +315,100 @@ export default function DailyNotePage() {
         )}
       </div>
 
-      {/* Notes List */}
+      {/* Notes List by Folder */}
       <div className='notes-list'>
         {isLoading ? (
           <div className='loading'>Loading...</div>
-        ) : notes.length === 0 ? (
+        ) : folders.length === 0 ? (
           <div className='empty'>
-            {search
-              ? 'No notes found'
-              : 'No notes yet. Create your first note!'}
+            No folders yet. Create your first note to get started!
           </div>
         ) : (
-          notes.map((note) => (
-            <div key={note._id} className='note-card'>
-              <div className='note-content' onClick={() => handleEdit(note)}>
-                <div className='note-header'>{note.header}</div>
-                <div className='note-preview'>{getPreview(note.content)}</div>
-                <div className='note-date'>{formatDate(note.createdAt)}</div>
+          notesByFolder.map(({ folder, notes: folderNotes }) => (
+            <div key={folder._id} className='folder-section'>
+              {/* Folder Header */}
+              <div className='folder-header'>
+                <button
+                  className='collapse-btn'
+                  onClick={() => toggleFolderCollapse(folder)}
+                  title={folder.isCollapsed ? 'Expand' : 'Collapse'}
+                >
+                  {folder.isCollapsed ? '▶' : '▼'}
+                </button>
+                
+                {editingFolderId === folder._id ? (
+                  <div className='folder-edit'>
+                    <input
+                      type='text'
+                      className='folder-name-input'
+                      value={editingFolderName}
+                      onChange={(e) => setEditingFolderName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          saveEditingFolder(folder._id);
+                        } else if (e.key === 'Escape') {
+                          cancelEditingFolder();
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      className='save-folder-btn'
+                      onClick={() => saveEditingFolder(folder._id)}
+                    >
+                      ✓
+                    </button>
+                    <button
+                      className='cancel-folder-btn'
+                      onClick={cancelEditingFolder}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <span className='folder-name'>{folder.name}</span>
+                    <button
+                      className='edit-folder-btn'
+                      onClick={() => startEditingFolder(folder)}
+                      title='Edit folder name'
+                    >
+                      ✎
+                    </button>
+                  </>
+                )}
+                
+                <span className='note-count'>({folderNotes.length})</span>
               </div>
-              <button
-                className='delete-btn'
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDelete(note);
-                }}
-                title='Delete'
-              >
-                ✕
-              </button>
+
+              {/* Notes in Folder */}
+              {!folder.isCollapsed && (
+                <div className='folder-notes'>
+                  {folderNotes.length === 0 ? (
+                    <div className='empty-folder'>No notes in this folder</div>
+                  ) : (
+                    folderNotes.map((note) => (
+                      <div key={note._id} className='note-card'>
+                        <div className='note-content' onClick={() => handleEdit(note)}>
+                          <div className='note-header'>{note.header}</div>
+                          <div className='note-preview'>{getPreview(note.content)}</div>
+                          <div className='note-date'>{formatDate(note.createdAt)}</div>
+                        </div>
+                        <button
+                          className='delete-btn'
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(note);
+                          }}
+                          title='Delete'
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
           ))
         )}
@@ -244,9 +425,12 @@ export default function DailyNotePage() {
       {isDialogOpen && (
         <NoteDialog
           note={editNote}
+          folders={folders}
           onClose={handleDialogClose}
           onSuccess={handleSaveSuccess}
           onError={(msg) => showNotification(msg, 'error')}
+          onFolderCreated={fetchFolders}
+          getAuthHeaders={getAuthHeaders}
         />
       )}
 
@@ -328,7 +512,7 @@ export default function DailyNotePage() {
         .notes-list {
           display: flex;
           flex-direction: column;
-          gap: 8px;
+          gap: 16px;
           flex: 1;
           overflow-y: auto;
         }
@@ -341,13 +525,137 @@ export default function DailyNotePage() {
           font-size: 14px;
         }
 
+        .folder-section {
+          border: 1px solid #e0e0e0;
+          border-radius: 8px;
+          overflow: hidden;
+        }
+
+        .folder-header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 12px 16px;
+          background: #f5f5f5;
+          border-bottom: 1px solid #e0e0e0;
+        }
+
+        .collapse-btn {
+          background: none;
+          border: none;
+          font-size: 12px;
+          cursor: pointer;
+          color: #666;
+          padding: 4px;
+          line-height: 1;
+          transition: color 0.2s;
+        }
+
+        .collapse-btn:hover {
+          color: #333;
+        }
+
+        .folder-name {
+          font-weight: 600;
+          font-size: 14px;
+          color: #333;
+          flex: 1;
+        }
+
+        .folder-edit {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex: 1;
+        }
+
+        .folder-name-input {
+          flex: 1;
+          padding: 4px 8px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          font-size: 14px;
+          font-weight: 600;
+          outline: none;
+          font-family: inherit;
+        }
+
+        .folder-name-input:focus {
+          border-color: #333;
+        }
+
+        .save-folder-btn,
+        .cancel-folder-btn {
+          background: none;
+          border: none;
+          font-size: 14px;
+          cursor: pointer;
+          padding: 4px 8px;
+          line-height: 1;
+          transition: color 0.2s;
+        }
+
+        .save-folder-btn {
+          color: #4caf50;
+        }
+
+        .save-folder-btn:hover {
+          color: #45a049;
+        }
+
+        .cancel-folder-btn {
+          color: #f44336;
+        }
+
+        .cancel-folder-btn:hover {
+          color: #da190b;
+        }
+
+        .edit-folder-btn {
+          background: none;
+          border: none;
+          font-size: 14px;
+          cursor: pointer;
+          color: #999;
+          padding: 4px;
+          line-height: 1;
+          transition: color 0.2s;
+        }
+
+        .edit-folder-btn:hover {
+          color: #666;
+        }
+
+        .note-count {
+          font-size: 12px;
+          color: #999;
+          margin-left: auto;
+        }
+
+        .folder-notes {
+          display: flex;
+          flex-direction: column;
+          gap: 0;
+        }
+
+        .empty-folder {
+          text-align: center;
+          color: #999;
+          padding: 20px;
+          font-size: 13px;
+          font-style: italic;
+        }
+
         .note-card {
           display: flex;
           align-items: flex-start;
-          border: 1px solid #eee;
-          border-radius: 6px;
-          padding: 12px;
+          padding: 12px 16px;
+          border-bottom: 1px solid #f0f0f0;
           transition: background-color 0.2s;
+        }
+
+        .note-card:last-child {
+          border-bottom: none;
         }
 
         .note-card:hover {
@@ -362,7 +670,7 @@ export default function DailyNotePage() {
 
         .note-header {
           font-weight: 600;
-          font-size: 16px;
+          font-size: 14px;
           color: inherit;
           margin-bottom: 4px;
           overflow: hidden;
@@ -399,7 +707,7 @@ export default function DailyNotePage() {
         }
 
         .delete-btn:hover {
-          color: #333;
+          color: #f44336;
         }
 
         .notification {
@@ -448,17 +756,27 @@ export default function DailyNotePage() {
 // Note Dialog Component
 interface NoteDialogProps {
   note: DailyNote | null;
+  folders: Folder[];
   onClose: () => void;
   onSuccess: () => void;
   onError: (message: string) => void;
+  onFolderCreated: () => void;
+  getAuthHeaders: () => Record<string, string>;
 }
 
-function NoteDialog({ note, onClose, onSuccess, onError }: NoteDialogProps) {
+function NoteDialog({ note, folders, onClose, onSuccess, onError, onFolderCreated, getAuthHeaders }: NoteDialogProps) {
   const [header, setHeader] = useState(note?.header || '');
   const [content, setContent] = useState(note?.content || '');
+  const [selectedFolderId, setSelectedFolderId] = useState(
+    note && typeof note.folder === 'object' ? note.folder._id : note?.folder || ''
+  );
+  const [folderSearch, setFolderSearch] = useState('');
+  const [showFolderDropdown, setShowFolderDropdown] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [mouseDownOnOverlay, setMouseDownOnOverlay] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const folderDropdownRef = useRef<HTMLDivElement>(null);
 
   const isEditMode = !!note;
 
@@ -475,6 +793,23 @@ function NoteDialog({ note, onClose, onSuccess, onError }: NoteDialogProps) {
     return () => clearTimeout(timer);
   }, []);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (folderDropdownRef.current && !folderDropdownRef.current.contains(event.target as Node)) {
+        setShowFolderDropdown(false);
+      }
+    };
+
+    if (showFolderDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showFolderDropdown]);
+
   // Auto-resize textarea
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setContent(e.target.value);
@@ -485,9 +820,56 @@ function NoteDialog({ note, onClose, onSuccess, onError }: NoteDialogProps) {
     }
   };
 
+  const filteredFolders = folders.filter(f =>
+    f.name.toLowerCase().includes(folderSearch.toLowerCase())
+  );
+
+  const selectedFolder = folders.find(f => f._id === selectedFolderId);
+
+  const handleCreateFolder = async () => {
+    if (!folderSearch.trim()) {
+      onError('Folder name cannot be empty');
+      return;
+    }
+
+    setIsCreatingFolder(true);
+    try {
+      const res = await fetch('/api/note-folder', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({ name: folderSearch.trim() }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        onError(data.error || 'Failed to create folder');
+        return;
+      }
+
+      const newFolder = await res.json();
+      setSelectedFolderId(newFolder._id);
+      setFolderSearch('');
+      setShowFolderDropdown(false);
+      onFolderCreated();
+    } catch (error) {
+      console.error('Error creating folder:', error);
+      onError('Failed to create folder');
+    } finally {
+      setIsCreatingFolder(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!header.trim()) {
       onError('Header is required');
+      return;
+    }
+
+    if (!selectedFolderId) {
+      onError('Please select a folder');
       return;
     }
 
@@ -504,12 +886,15 @@ function NoteDialog({ note, onClose, onSuccess, onError }: NoteDialogProps) {
       const url = isEditMode ? '/api/daily-note/update' : '/api/daily-note';
       const method = isEditMode ? 'PUT' : 'POST';
       const body = isEditMode
-        ? { id: note._id, header, content, password }
-        : { header, content };
+        ? { id: note._id, header, content, folderId: selectedFolderId, password }
+        : { header, content, folderId: selectedFolderId };
 
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
         body: JSON.stringify(body),
       });
 
@@ -558,7 +943,7 @@ function NoteDialog({ note, onClose, onSuccess, onError }: NoteDialogProps) {
           <button
             className='save-btn'
             onClick={handleSave}
-            disabled={isSaving || !header.trim()}
+            disabled={isSaving || !header.trim() || !selectedFolderId}
           >
             {isSaving ? '...' : 'Save'}
           </button>
@@ -566,6 +951,67 @@ function NoteDialog({ note, onClose, onSuccess, onError }: NoteDialogProps) {
 
         {/* Form */}
         <div className='dialog-body'>
+          {/* Folder Selection */}
+          <div className='folder-select-wrapper' ref={folderDropdownRef}>
+            <label className='folder-label'>Folder</label>
+            <div
+              className='folder-select'
+              onClick={() => setShowFolderDropdown(!showFolderDropdown)}
+            >
+              <span className='folder-select-text'>
+                {selectedFolder ? selectedFolder.name : 'Select folder...'}
+              </span>
+              <span className='folder-select-arrow'>▼</span>
+            </div>
+
+            {showFolderDropdown && (
+              <div className='folder-dropdown'>
+                <input
+                  type='text'
+                  className='folder-search'
+                  placeholder='Search or create folder...'
+                  value={folderSearch}
+                  onChange={(e) => setFolderSearch(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  autoFocus
+                />
+
+                <div className='folder-list'>
+                  {filteredFolders.length > 0 ? (
+                    filteredFolders.map((folder) => (
+                      <div
+                        key={folder._id}
+                        className={`folder-item ${selectedFolderId === folder._id ? 'selected' : ''}`}
+                        onClick={() => {
+                          setSelectedFolderId(folder._id);
+                          setShowFolderDropdown(false);
+                          setFolderSearch('');
+                        }}
+                      >
+                        {folder.name}
+                      </div>
+                    ))
+                  ) : folderSearch.trim() ? (
+                    <div className='no-results'>
+                      <p>No folder found</p>
+                      <button
+                        className='create-folder-btn'
+                        onClick={handleCreateFolder}
+                        disabled={isCreatingFolder}
+                      >
+                        {isCreatingFolder ? 'Creating...' : `Create "${folderSearch}"`}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className='no-results'>
+                      <p>No folders available</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           <input
             type='text'
             className='dialog-header-input'
@@ -679,6 +1125,123 @@ function NoteDialog({ note, onClose, onSuccess, onError }: NoteDialogProps) {
           display: flex;
           flex-direction: column;
           gap: 16px;
+        }
+
+        .folder-select-wrapper {
+          position: relative;
+        }
+
+        .folder-label {
+          display: block;
+          font-size: 13px;
+          font-weight: 500;
+          color: #666;
+          margin-bottom: 8px;
+        }
+
+        .folder-select {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 10px 12px;
+          border: 1px solid #ddd;
+          border-radius: 5px;
+          cursor: pointer;
+          background: white;
+          transition: border-color 0.2s;
+        }
+
+        .folder-select:hover {
+          border-color: #999;
+        }
+
+        .folder-select-text {
+          font-size: 14px;
+          color: #333;
+        }
+
+        .folder-select-arrow {
+          font-size: 10px;
+          color: #999;
+        }
+
+        .folder-dropdown {
+          position: absolute;
+          top: 100%;
+          left: 0;
+          right: 0;
+          margin-top: 4px;
+          background: white;
+          border: 1px solid #ddd;
+          border-radius: 5px;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+          z-index: 10;
+          max-height: 300px;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .folder-search {
+          padding: 10px 12px;
+          border: none;
+          border-bottom: 1px solid #eee;
+          font-size: 14px;
+          outline: none;
+          font-family: inherit;
+        }
+
+        .folder-list {
+          overflow-y: auto;
+          max-height: 250px;
+        }
+
+        .folder-item {
+          padding: 10px 12px;
+          font-size: 14px;
+          cursor: pointer;
+          transition: background-color 0.2s;
+        }
+
+        .folder-item:hover {
+          background: #f5f5f5;
+        }
+
+        .folder-item.selected {
+          background: #e3f2fd;
+          color: #1976d2;
+        }
+
+        .no-results {
+          padding: 16px;
+          text-align: center;
+        }
+
+        .no-results p {
+          font-size: 13px;
+          color: #999;
+          margin-bottom: 12px;
+        }
+
+        .create-folder-btn {
+          background: #4caf50;
+          color: white;
+          border: none;
+          padding: 8px 16px;
+          border-radius: 5px;
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: background-color 0.2s;
+          font-family: inherit;
+        }
+
+        .create-folder-btn:hover {
+          background: #45a049;
+        }
+
+        .create-folder-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
         }
 
         .dialog-header-input {

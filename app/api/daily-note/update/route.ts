@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
 import { Note } from "@/models/DailyNote";
+import { NoteFolder } from "@/models/NoteFolder";
 import { validateAuth } from "@/lib/auth-utils";
 
 export async function PUT(req: NextRequest) {
@@ -18,7 +19,7 @@ export async function PUT(req: NextRequest) {
     await connectDB();
 
     const body = await req.json();
-    const { id, header, content } = body;
+    const { id, header, content, folderId } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -34,15 +35,29 @@ export async function PUT(req: NextRequest) {
       );
     }
 
+    const updateData: any = {
+      header: header.trim(),
+      content: content || "",
+      updatedAt: new Date()
+    };
+
+    // If folderId is provided, verify it exists
+    if (folderId) {
+      const folder = await NoteFolder.findById(folderId);
+      if (!folder) {
+        return NextResponse.json(
+          { error: "Folder not found" },
+          { status: 404 }
+        );
+      }
+      updateData.folder = folderId;
+    }
+
     const note = await Note.findByIdAndUpdate(
       id,
-      {
-        header: header.trim(),
-        content: content || "",
-        updatedAt: new Date()
-      },
+      updateData,
       { new: true }
-    );
+    ).populate('folder', 'name isCollapsed');
 
     if (!note) {
       return NextResponse.json(

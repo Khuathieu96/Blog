@@ -2,9 +2,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongoose";
 import { Note } from "@/models/DailyNote";
+import { NoteFolder } from "@/models/NoteFolder";
 import { validateAuth } from "@/lib/auth-utils";
 
-// GET - List all daily notes (sorted by newest first)
+// GET - List all daily notes (sorted by newest first) with folder info
 export async function GET(req: NextRequest) {
   try {
     // Validate authentication
@@ -31,7 +32,9 @@ export async function GET(req: NextRequest) {
       };
     }
 
-    const notes = await Note.find(query).sort({ createdAt: -1 });
+    const notes = await Note.find(query)
+      .populate('folder', 'name isCollapsed')
+      .sort({ createdAt: -1 });
     return NextResponse.json(notes);
   } catch (error) {
     console.error("Error fetching daily notes:", error);
@@ -57,7 +60,7 @@ export async function POST(req: NextRequest) {
     await connectDB();
 
     const body = await req.json();
-    const { header, content } = body;
+    const { header, content, folderId } = body;
 
     if (!header || !header.trim()) {
       return NextResponse.json(
@@ -66,12 +69,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!folderId) {
+      return NextResponse.json(
+        { error: "Folder is required" },
+        { status: 400 }
+      );
+    }
+
+    // Verify folder exists
+    const folder = await NoteFolder.findById(folderId);
+    if (!folder) {
+      return NextResponse.json(
+        { error: "Folder not found" },
+        { status: 404 }
+      );
+    }
+
     const note = await Note.create({
       header: header.trim(),
       content: content || "",
+      folder: folderId,
       createdAt: new Date(),
       updatedAt: new Date()
     });
+
+    // Populate folder before returning
+    await note.populate('folder', 'name isCollapsed');
 
     return NextResponse.json(note, { status: 201 });
   } catch (error) {
