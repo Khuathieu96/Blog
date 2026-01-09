@@ -19,7 +19,7 @@ interface AuthContextType {
   login: (user: User, token: string) => void;
   logout: () => void;
   isAuthenticated: boolean;
-  getAuthHeaders: () => HeadersInit;
+  getAuthHeaders: () => Record<string, string>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('authToken');
   };
 
-  const getAuthHeaders = (): HeadersInit => {
+  const getAuthHeaders = (): Record<string, string> => {
     const token = localStorage.getItem('authToken');
     if (token) {
       return {
