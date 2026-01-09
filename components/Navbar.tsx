@@ -1,19 +1,42 @@
 'use client';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import CreateArticleDialog from './CreateArticleDialog';
 
 export default function Navbar() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const { user, logout, isAuthenticated } = useAuth();
   const router = useRouter();
 
   const handleLogout = () => {
     logout();
     router.push('/');
+    setIsDropdownOpen(false);
   };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    if (isDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isDropdownOpen]);
 
   return (
     <>
@@ -32,18 +55,9 @@ export default function Navbar() {
             Home
           </Link>
           {isAuthenticated && (
-            <>
-              <Link href='/daily-note' className='nav-icon' title='Daily Notes'>
-                Note
-              </Link>
-              <Link
-                href='/registers'
-                className='nav-icon'
-                title='Registration Requests'
-              >
-                Registers
-              </Link>
-            </>
+            <Link href='/daily-note' className='nav-icon' title='Daily Notes'>
+              Note
+            </Link>
           )}
         </div>
         <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
@@ -60,13 +74,31 @@ export default function Navbar() {
             Me
           </Link>
           {isAuthenticated ? (
-            <button
-              onClick={handleLogout}
-              className='nav-icon'
-              title='Sign Out'
-            >
-              🚪
-            </button>
+            <div ref={dropdownRef} style={{ position: 'relative' }}>
+              <button
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className='nav-icon'
+                title='Menu'
+              >
+                👤
+              </button>
+              {isDropdownOpen && (
+                <div className='dropdown-menu'>
+                  <button
+                    onClick={() => {
+                      router.push('/registers');
+                      setIsDropdownOpen(false);
+                    }}
+                    className='dropdown-item'
+                  >
+                    Registers
+                  </button>
+                  <button onClick={handleLogout} className='dropdown-item'>
+                    Sign Out
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
             <Link href='/signin' className='nav-icon' title='Sign In'>
               Sign in
@@ -97,6 +129,42 @@ export default function Navbar() {
         }
         .nav-icon:hover {
           color: #333;
+        }
+        .dropdown-menu {
+          position: absolute;
+          top: 100%;
+          right: 0;
+          margin-top: 8px;
+          background: white;
+          border: 1px solid #eee;
+          border-radius: 8px;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+          min-width: 150px;
+          overflow: hidden;
+          z-index: 1000;
+        }
+        .dropdown-item {
+          display: block;
+          width: 100%;
+          padding: 12px 16px;
+          text-align: left;
+          background: none;
+          border: none;
+          color: #333;
+          font-size: 14px;
+          font-family: inherit;
+          cursor: pointer;
+          transition: background-color 0.2s;
+          text-decoration: none;
+          border-bottom: 1px solid #f0f0f0;
+          box-sizing: border-box;
+          line-height: 1.5;
+        }
+        .dropdown-item:last-child {
+          border-bottom: none;
+        }
+        .dropdown-item:hover {
+          background-color: #f5f5f5;
         }
       `}</style>
     </>
