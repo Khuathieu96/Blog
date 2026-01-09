@@ -377,7 +377,7 @@ export default function DailyNotePage() {
       {/* Header */}
       <div className='header'>
         <h1>Daily Notes</h1>
-        <button className='create-btn' onClick={handleCreate} title='New Note'>
+        <button className='create-btn' onClick={() => handleCreate()} title='New Note'>
           +
         </button>
       </div>
