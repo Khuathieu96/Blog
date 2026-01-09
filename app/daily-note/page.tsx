@@ -35,6 +35,7 @@ export default function DailyNotePage() {
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editingFolderName, setEditingFolderName] = useState('');
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialMount = useRef(true);
   const { isAuthenticated, isLoading: authLoading, getAuthHeaders } = useAuth();
   const router = useRouter();
 
@@ -100,12 +101,16 @@ export default function DailyNotePage() {
     if (isAuthenticated && !authLoading) {
       fetchFolders();
       fetchNotes();
+      isInitialMount.current = false;
     }
   }, [isAuthenticated, authLoading]);
 
   // Debounced search
   useEffect(() => {
     if (!isAuthenticated) return;
+    
+    // Skip the debounced search on initial mount to prevent double fetch
+    if (isInitialMount.current) return;
 
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
@@ -259,7 +264,10 @@ export default function DailyNotePage() {
     }
 
     // Second confirmation only if folder has notes
-    if (noteCount > 0 && !confirm('Are you sure? This action cannot be undone.')) {
+    if (
+      noteCount > 0 &&
+      !confirm('Are you sure? This action cannot be undone.')
+    ) {
       return;
     }
 

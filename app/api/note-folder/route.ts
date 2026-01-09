@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
       };
     }
 
-    const folders = await NoteFolder.find(query).sort({ order: 1, name: 1 });
+    const folders = await NoteFolder.find(query).sort({ createdAt: -1 });
     return NextResponse.json(folders);
   } catch (error) {
     console.error("Error fetching folders:", error);
