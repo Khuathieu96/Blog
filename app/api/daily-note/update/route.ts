@@ -15,7 +15,7 @@ export async function PUT(req: NextRequest) {
         { status: 401 }
       );
     }
-    
+
     await connectDB();
 
     const body = await req.json();

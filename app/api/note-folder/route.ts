@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
         { status: 401 }
       );
     }
-    
+
     await connectDB();
 
     const { searchParams } = new URL(req.url);
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
         { status: 401 }
       );
     }
-    
+
     await connectDB();
 
     const body = await req.json();
@@ -96,7 +96,7 @@ export async function PUT(req: NextRequest) {
         { status: 401 }
       );
     }
-    
+
     await connectDB();
 
     const body = await req.json();
@@ -110,7 +110,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const updateData: any = { updatedAt: new Date() };
-    
+
     if (name !== undefined) {
       if (!name.trim()) {
         return NextResponse.json(
@@ -118,9 +118,9 @@ export async function PUT(req: NextRequest) {
           { status: 400 }
         );
       }
-      
+
       // Check if another folder has this name
-      const existing = await NoteFolder.findOne({ 
+      const existing = await NoteFolder.findOne({
         name: name.trim(),
         _id: { $ne: id }
       });
@@ -130,10 +130,10 @@ export async function PUT(req: NextRequest) {
           { status: 400 }
         );
       }
-      
+
       updateData.name = name.trim();
     }
-    
+
     if (isCollapsed !== undefined) {
       updateData.isCollapsed = isCollapsed;
     }
@@ -156,6 +156,53 @@ export async function PUT(req: NextRequest) {
     console.error("Error updating folder:", error);
     return NextResponse.json(
       { error: "Failed to update folder" },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE - Delete a folder
+export async function DELETE(req: NextRequest) {
+  try {
+    const auth = await validateAuth(req);
+    if (!auth.isValid) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    await connectDB();
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Folder ID is required" },
+        { status: 400 }
+      );
+    }
+
+    // Delete all notes in this folder first
+    const { Note } = await import("@/models/DailyNote");
+    await Note.deleteMany({ folder: id });
+
+    // Then delete the folder
+    const folder = await NoteFolder.findByIdAndDelete(id);
+
+    if (!folder) {
+      return NextResponse.json(
+        { error: "Folder not found" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({ message: "Folder and all notes deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting folder:", error);
+    return NextResponse.json(
+      { error: "Failed to delete folder" },
       { status: 500 }
     );
   }

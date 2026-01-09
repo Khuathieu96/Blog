@@ -24,6 +24,9 @@ export default function DailyNotePage() {
   const [search, setSearch] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editNote, setEditNote] = useState<DailyNote | null>(null);
+  const [preselectedFolderId, setPreselectedFolderId] = useState<string | null>(
+    null,
+  );
   const [notification, setNotification] = useState<{
     message: string;
     type: 'success' | 'error';
@@ -45,17 +48,17 @@ export default function DailyNotePage() {
   // Fetch folders
   const fetchFolders = async () => {
     if (!isAuthenticated) return;
-    
+
     try {
       const res = await fetch('/api/note-folder', {
-        headers: getAuthHeaders()
+        headers: getAuthHeaders(),
       });
-      
+
       if (res.status === 401) {
         router.push('/');
         return;
       }
-      
+
       const data = await res.json();
       setFolders(data);
     } catch (error) {
@@ -67,21 +70,21 @@ export default function DailyNotePage() {
   // Fetch notes
   const fetchNotes = async (searchQuery = '') => {
     if (!isAuthenticated) return;
-    
+
     try {
       setIsLoading(true);
       const url = searchQuery
         ? `/api/daily-note?search=${encodeURIComponent(searchQuery)}`
         : '/api/daily-note';
       const res = await fetch(url, {
-        headers: getAuthHeaders()
+        headers: getAuthHeaders(),
       });
-      
+
       if (res.status === 401) {
         router.push('/');
         return;
       }
-      
+
       const data = await res.json();
       setNotes(data);
     } catch (error) {
@@ -103,7 +106,7 @@ export default function DailyNotePage() {
   // Debounced search
   useEffect(() => {
     if (!isAuthenticated) return;
-    
+
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
@@ -128,7 +131,10 @@ export default function DailyNotePage() {
     try {
       const res = await fetch('/api/daily-note/delete', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
         body: JSON.stringify({ id: note._id }),
       });
 
@@ -138,8 +144,9 @@ export default function DailyNotePage() {
         return;
       }
 
+      // Remove note from local state to prevent flickering
+      setNotes((prevNotes) => prevNotes.filter((n) => n._id !== note._id));
       showNotification('Note deleted', 'success');
-      fetchNotes(search);
     } catch (error) {
       console.error('Error deleting note:', error);
       showNotification('Failed to delete note', 'error');
@@ -148,11 +155,13 @@ export default function DailyNotePage() {
 
   const handleEdit = (note: DailyNote) => {
     setEditNote(note);
+    setPreselectedFolderId(null);
     setIsDialogOpen(true);
   };
 
-  const handleCreate = () => {
+  const handleCreate = (folderId?: string) => {
     setEditNote(null);
+    setPreselectedFolderId(folderId || null);
     setIsDialogOpen(true);
   };
 
@@ -160,13 +169,13 @@ export default function DailyNotePage() {
     try {
       const res = await fetch('/api/note-folder', {
         method: 'PUT',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          ...getAuthHeaders()
+          ...getAuthHeaders(),
         },
         body: JSON.stringify({
           id: folder._id,
-          isCollapsed: !folder.isCollapsed
+          isCollapsed: !folder.isCollapsed,
         }),
       });
 
@@ -176,9 +185,11 @@ export default function DailyNotePage() {
       }
 
       // Update local state
-      setFolders(folders.map(f => 
-        f._id === folder._id ? { ...f, isCollapsed: !f.isCollapsed } : f
-      ));
+      setFolders(
+        folders.map((f) =>
+          f._id === folder._id ? { ...f, isCollapsed: !f.isCollapsed } : f,
+        ),
+      );
     } catch (error) {
       console.error('Error toggling folder:', error);
       showNotification('Failed to update folder', 'error');
@@ -199,13 +210,13 @@ export default function DailyNotePage() {
     try {
       const res = await fetch('/api/note-folder', {
         method: 'PUT',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          ...getAuthHeaders()
+          ...getAuthHeaders(),
         },
         body: JSON.stringify({
           id: folderId,
-          name: editingFolderName.trim()
+          name: editingFolderName.trim(),
         }),
       });
 
@@ -230,6 +241,59 @@ export default function DailyNotePage() {
     setEditingFolderName('');
   };
 
+  const handleDeleteFolder = async (
+    folderId: string,
+    folderName: string,
+    noteCount: number,
+  ) => {
+    // First confirmation
+    const message =
+      noteCount > 0
+        ? `This folder "${folderName}" contains ${noteCount} note${
+            noteCount > 1 ? 's' : ''
+          }. Do you want to delete the folder and all its notes?`
+        : `Do you want to delete the folder "${folderName}"?`;
+
+    if (!confirm(message)) {
+      return;
+    }
+
+    // Second confirmation only if folder has notes
+    if (noteCount > 0 && !confirm('Are you sure? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/note-folder?id=${folderId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        showNotification(data.error || 'Failed to delete folder', 'error');
+        return;
+      }
+
+      // Remove folder and its notes from local state
+      setFolders((prevFolders) =>
+        prevFolders.filter((f) => f._id !== folderId),
+      );
+      setNotes((prevNotes) =>
+        prevNotes.filter((note) =>
+          typeof note.folder === 'object'
+            ? note.folder._id !== folderId
+            : note.folder !== folderId,
+        ),
+      );
+
+      showNotification('Folder and all notes deleted', 'success');
+    } catch (error) {
+      console.error('Error deleting folder:', error);
+      showNotification('Failed to delete folder', 'error');
+    }
+  };
+
   // Show loading while checking authentication
   if (authLoading) {
     return null;
@@ -243,12 +307,21 @@ export default function DailyNotePage() {
   const handleDialogClose = () => {
     setIsDialogOpen(false);
     setEditNote(null);
+    setPreselectedFolderId(null);
   };
 
-  const handleSaveSuccess = () => {
+  const handleSaveSuccess = (savedNote?: DailyNote) => {
+    const isCreate = !editNote;
     handleDialogClose();
-    fetchNotes(search);
-    fetchFolders();
+
+    if (isCreate && savedNote) {
+      // Add new note to local state to prevent flickering
+      setNotes((prevNotes) => [savedNote, ...prevNotes]);
+    } else {
+      // For edits, refetch to get updated data
+      fetchNotes(search);
+    }
+
     showNotification(editNote ? 'Note updated' : 'Note created', 'success');
   };
 
@@ -282,11 +355,13 @@ export default function DailyNotePage() {
   };
 
   // Group notes by folder
-  const notesByFolder = folders.map(folder => ({
+  const notesByFolder = folders.map((folder) => ({
     folder,
-    notes: notes.filter(note => 
-      typeof note.folder === 'object' ? note.folder._id === folder._id : note.folder === folder._id
-    )
+    notes: notes.filter((note) =>
+      typeof note.folder === 'object'
+        ? note.folder._id === folder._id
+        : note.folder === folder._id,
+    ),
   }));
 
   return (
@@ -335,7 +410,7 @@ export default function DailyNotePage() {
                 >
                   {folder.isCollapsed ? '▶' : '▼'}
                 </button>
-                
+
                 {editingFolderId === folder._id ? (
                   <div className='folder-edit'>
                     <input
@@ -375,9 +450,29 @@ export default function DailyNotePage() {
                     >
                       ✎
                     </button>
+                    <button
+                      className='add-note-btn'
+                      onClick={() => handleCreate(folder._id)}
+                      title='Add note to this folder'
+                    >
+                      +
+                    </button>
+                    <button
+                      className='delete-folder-btn'
+                      onClick={() =>
+                        handleDeleteFolder(
+                          folder._id,
+                          folder.name,
+                          folderNotes.length,
+                        )
+                      }
+                      title='Delete folder'
+                    >
+                      🗑
+                    </button>
                   </>
                 )}
-                
+
                 <span className='note-count'>({folderNotes.length})</span>
               </div>
 
@@ -389,10 +484,17 @@ export default function DailyNotePage() {
                   ) : (
                     folderNotes.map((note) => (
                       <div key={note._id} className='note-card'>
-                        <div className='note-content' onClick={() => handleEdit(note)}>
+                        <div
+                          className='note-content'
+                          onClick={() => handleEdit(note)}
+                        >
                           <div className='note-header'>{note.header}</div>
-                          <div className='note-preview'>{getPreview(note.content)}</div>
-                          <div className='note-date'>{formatDate(note.createdAt)}</div>
+                          <div className='note-preview'>
+                            {getPreview(note.content)}
+                          </div>
+                          <div className='note-date'>
+                            {formatDate(note.createdAt)}
+                          </div>
                         </div>
                         <button
                           className='delete-btn'
@@ -426,6 +528,7 @@ export default function DailyNotePage() {
         <NoteDialog
           note={editNote}
           folders={folders}
+          preselectedFolderId={preselectedFolderId}
           onClose={handleDialogClose}
           onSuccess={handleSaveSuccess}
           onError={(msg) => showNotification(msg, 'error')}
@@ -439,9 +542,10 @@ export default function DailyNotePage() {
           max-width: 800px;
           margin: 0 auto;
           padding: 20px;
-          min-height: 100vh;
+          height: calc(100vh - 110px);
           display: flex;
           flex-direction: column;
+          overflow: hidden;
         }
 
         .header {
@@ -449,6 +553,7 @@ export default function DailyNotePage() {
           justify-content: space-between;
           align-items: center;
           margin-bottom: 16px;
+          flex-shrink: 0;
         }
 
         .header h1 {
@@ -479,6 +584,7 @@ export default function DailyNotePage() {
         .search-wrapper {
           position: relative;
           margin-bottom: 16px;
+          flex-shrink: 0;
         }
 
         .search-input {
@@ -515,6 +621,7 @@ export default function DailyNotePage() {
           gap: 16px;
           flex: 1;
           overflow-y: auto;
+          min-height: 0;
         }
 
         .loading,
@@ -528,7 +635,6 @@ export default function DailyNotePage() {
         .folder-section {
           border: 1px solid #e0e0e0;
           border-radius: 8px;
-          overflow: hidden;
         }
 
         .folder-header {
@@ -624,6 +730,36 @@ export default function DailyNotePage() {
 
         .edit-folder-btn:hover {
           color: #666;
+        }
+
+        .add-note-btn {
+          background: none;
+          border: none;
+          font-size: 16px;
+          cursor: pointer;
+          color: #999;
+          padding: 4px;
+          line-height: 1;
+          transition: color 0.2s;
+        }
+
+        .add-note-btn:hover {
+          color: #4caf50;
+        }
+
+        .delete-folder-btn {
+          background: none;
+          border: none;
+          font-size: 14px;
+          cursor: pointer;
+          color: #999;
+          padding: 4px;
+          line-height: 1;
+          transition: color 0.2s;
+        }
+
+        .delete-folder-btn:hover {
+          color: #f44336;
         }
 
         .note-count {
@@ -757,18 +893,30 @@ export default function DailyNotePage() {
 interface NoteDialogProps {
   note: DailyNote | null;
   folders: Folder[];
+  preselectedFolderId?: string | null;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (savedNote?: DailyNote) => void;
   onError: (message: string) => void;
   onFolderCreated: () => void;
   getAuthHeaders: () => Record<string, string>;
 }
 
-function NoteDialog({ note, folders, onClose, onSuccess, onError, onFolderCreated, getAuthHeaders }: NoteDialogProps) {
+function NoteDialog({
+  note,
+  folders,
+  preselectedFolderId,
+  onClose,
+  onSuccess,
+  onError,
+  onFolderCreated,
+  getAuthHeaders,
+}: NoteDialogProps) {
   const [header, setHeader] = useState(note?.header || '');
   const [content, setContent] = useState(note?.content || '');
   const [selectedFolderId, setSelectedFolderId] = useState(
-    note && typeof note.folder === 'object' ? note.folder._id : note?.folder || ''
+    note && typeof note.folder === 'object'
+      ? note.folder._id
+      : note?.folder || preselectedFolderId || '',
   );
   const [folderSearch, setFolderSearch] = useState('');
   const [showFolderDropdown, setShowFolderDropdown] = useState(false);
@@ -796,7 +944,10 @@ function NoteDialog({ note, folders, onClose, onSuccess, onError, onFolderCreate
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (folderDropdownRef.current && !folderDropdownRef.current.contains(event.target as Node)) {
+      if (
+        folderDropdownRef.current &&
+        !folderDropdownRef.current.contains(event.target as Node)
+      ) {
         setShowFolderDropdown(false);
       }
     };
@@ -820,11 +971,11 @@ function NoteDialog({ note, folders, onClose, onSuccess, onError, onFolderCreate
     }
   };
 
-  const filteredFolders = folders.filter(f =>
-    f.name.toLowerCase().includes(folderSearch.toLowerCase())
+  const filteredFolders = folders.filter((f) =>
+    f.name.toLowerCase().includes(folderSearch.toLowerCase()),
   );
 
-  const selectedFolder = folders.find(f => f._id === selectedFolderId);
+  const selectedFolder = folders.find((f) => f._id === selectedFolderId);
 
   const handleCreateFolder = async () => {
     if (!folderSearch.trim()) {
@@ -836,9 +987,9 @@ function NoteDialog({ note, folders, onClose, onSuccess, onError, onFolderCreate
     try {
       const res = await fetch('/api/note-folder', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          ...getAuthHeaders()
+          ...getAuthHeaders(),
         },
         body: JSON.stringify({ name: folderSearch.trim() }),
       });
@@ -853,6 +1004,8 @@ function NoteDialog({ note, folders, onClose, onSuccess, onError, onFolderCreate
       setSelectedFolderId(newFolder._id);
       setFolderSearch('');
       setShowFolderDropdown(false);
+      // Update folders list locally instead of refetching
+      folders.push(newFolder);
       onFolderCreated();
     } catch (error) {
       console.error('Error creating folder:', error);
@@ -873,27 +1026,20 @@ function NoteDialog({ note, folders, onClose, onSuccess, onError, onFolderCreate
       return;
     }
 
-    let password = '';
-    if (isEditMode) {
-      const pw = prompt('Enter password to save:');
-      if (!pw) return;
-      password = pw;
-    }
-
     setIsSaving(true);
 
     try {
       const url = isEditMode ? '/api/daily-note/update' : '/api/daily-note';
       const method = isEditMode ? 'PUT' : 'POST';
       const body = isEditMode
-        ? { id: note._id, header, content, folderId: selectedFolderId, password }
+        ? { id: note._id, header, content, folderId: selectedFolderId }
         : { header, content, folderId: selectedFolderId };
 
       const res = await fetch(url, {
         method,
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          ...getAuthHeaders()
+          ...getAuthHeaders(),
         },
         body: JSON.stringify(body),
       });
@@ -905,7 +1051,8 @@ function NoteDialog({ note, folders, onClose, onSuccess, onError, onFolderCreate
         return;
       }
 
-      onSuccess();
+      const savedNote = await res.json();
+      onSuccess(savedNote);
     } catch (error) {
       console.error('Error saving note:', error);
       onError('Failed to save note');
@@ -981,7 +1128,9 @@ function NoteDialog({ note, folders, onClose, onSuccess, onError, onFolderCreate
                     filteredFolders.map((folder) => (
                       <div
                         key={folder._id}
-                        className={`folder-item ${selectedFolderId === folder._id ? 'selected' : ''}`}
+                        className={`folder-item ${
+                          selectedFolderId === folder._id ? 'selected' : ''
+                        }`}
                         onClick={() => {
                           setSelectedFolderId(folder._id);
                           setShowFolderDropdown(false);
@@ -999,7 +1148,9 @@ function NoteDialog({ note, folders, onClose, onSuccess, onError, onFolderCreate
                         onClick={handleCreateFolder}
                         disabled={isCreatingFolder}
                       >
-                        {isCreatingFolder ? 'Creating...' : `Create "${folderSearch}"`}
+                        {isCreatingFolder
+                          ? 'Creating...'
+                          : `Create "${folderSearch}"`}
                       </button>
                     </div>
                   ) : (

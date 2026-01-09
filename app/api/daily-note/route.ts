@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
         { status: 401 }
       );
     }
-    
+
     await connectDB();
 
     const { searchParams } = new URL(req.url);
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
         { status: 401 }
       );
     }
-    
+
     await connectDB();
 
     const body = await req.json();
