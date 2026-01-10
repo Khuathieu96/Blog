@@ -4,6 +4,7 @@ import { connectDB } from "@/lib/mongoose";
 import { KanbanBoard } from "@/models/KanbanBoard";
 import { KanbanColumn } from "@/models/KanbanColumn";
 import { KanbanTask } from "@/models/KanbanTask";
+import { KanbanTaskHistory } from "@/models/KanbanTaskHistory";
 import { validateAuth } from "@/lib/auth-utils";
 
 // Helper to check board access
@@ -13,6 +14,55 @@ async function checkBoardAccess(boardId: string, userId: string) {
 
   return board.owner.toString() === userId ||
     board.members.some((m: any) => m.toString() === userId);
+}
+
+// Helper to map column title to status (base status, may be overridden for reopened tasks)
+function getStatusFromColumnTitle(title: string): string | null {
+  const normalized = title.toLowerCase().trim();
+  if (normalized === 'backlog') return null;
+  if (normalized === 'todo' || normalized === 'to do') return 'Todo';
+  if (normalized === 'in progress' || normalized === 'inprogress' || normalized === 'progress') return 'In Progress';
+  if (normalized === 'done' || normalized === 'completed') return 'Done';
+  // Default: return title as-is
+  return title;
+}
+
+// Helper to record task history
+async function recordHistory(params: {
+  taskId: string;
+  boardId: string;
+  action: string;
+  userId: string;
+  userEmail?: string;
+  field?: string;
+  oldValue?: any;
+  newValue?: any;
+  fromColumnId?: string;
+  toColumnId?: string;
+  fromStatus?: string;
+  toStatus?: string;
+  metadata?: Record<string, any>;
+}) {
+  try {
+    await KanbanTaskHistory.create({
+      task: params.taskId,
+      board: params.boardId,
+      action: params.action,
+      field: params.field,
+      oldValue: params.oldValue !== undefined ? String(params.oldValue) : undefined,
+      newValue: params.newValue !== undefined ? String(params.newValue) : undefined,
+      fromColumn: params.fromColumnId,
+      toColumn: params.toColumnId,
+      fromStatus: params.fromStatus,
+      toStatus: params.toStatus,
+      userId: params.userId,
+      userEmail: params.userEmail,
+      metadata: params.metadata
+    });
+  } catch (error) {
+    console.error('Failed to record task history:', error);
+    // Don't fail the main operation if history recording fails
+  }
 }
 
 // POST /api/kanban/task - Create task
@@ -49,6 +99,9 @@ export async function POST(req: NextRequest) {
     .select('order');
   const order = maxOrderTask ? maxOrderTask.order + 1 : 0;
 
+  // Set initial status based on column
+  const initialStatus = getStatusFromColumnTitle(column.title);
+
   const task = await KanbanTask.create({
     column: data.columnId,
     board: column.board,
@@ -57,21 +110,27 @@ export async function POST(req: NextRequest) {
     parent: data.parentId || null,
     labels: data.labels || [],
     dueDate: data.dueDate || null,
+    status: initialStatus,
     order
   });
 
-  return NextResponse.json(task);
-}
+  // Record creation history
+  await recordHistory({
+    taskId: task._id.toString(),
+    boardId: column.board.toString(),
+    action: data.parentId ? 'subtask_added' : 'created',
+    userId: auth.userId!,
+    userEmail: auth.email,
+    toColumnId: data.columnId,
+    toStatus: initialStatus || 'Backlog',
+    metadata: {
+      title: data.title,
+      columnTitle: column.title,
+      parentId: data.parentId
+    }
+  });
 
-// Helper to map column title to status
-function getStatusFromColumnTitle(title: string): string | null {
-  const normalized = title.toLowerCase().trim();
-  if (normalized === 'backlog') return null;
-  if (normalized === 'todo' || normalized === 'to do') return 'Todo';
-  if (normalized === 'in progress' || normalized === 'inprogress' || normalized === 'progress') return 'In Progress';
-  if (normalized === 'done' || normalized === 'completed') return 'Done';
-  // Default: return title as-is
-  return title;
+  return NextResponse.json(task);
 }
 
 // PUT /api/kanban/task - Update task
@@ -99,6 +158,7 @@ export async function PUT(req: NextRequest) {
   }
 
   let newStatus = task.status;
+  const oldStatus = task.status;
 
   // Handle moving to different column
   if (data.columnId && data.columnId !== task.column.toString()) {
@@ -110,6 +170,11 @@ export async function PUT(req: NextRequest) {
 
     // Determine new status from column title
     newStatus = getStatusFromColumnTitle(newColumn.title);
+
+    // Special case: Moving from Done to To Do = "Reopened" status
+    if (oldStatus === 'Done' && newStatus === 'Todo') {
+      newStatus = 'Reopened';
+    }
 
     // Check if moving to "In Progress" without dueDate
     if (newStatus === 'In Progress' && !task.dueDate && !data.dueDate) {
@@ -161,23 +226,141 @@ export async function PUT(req: NextRequest) {
   if (data.dueDate !== undefined) updateData.dueDate = data.dueDate;
   if (data.isCompleted !== undefined) updateData.isCompleted = data.isCompleted;
 
-  // Workflow: Update status if column changed
+  // Track what changed for history
+  const historyActions: Array<{
+    action: string;
+    field?: string;
+    oldValue?: any;
+    newValue?: any;
+    fromColumnId?: string;
+    toColumnId?: string;
+    fromStatus?: string;
+    toStatus?: string;
+    metadata?: Record<string, any>;
+  }> = [];
+
+  // Workflow: Update status and dates based on transitions
   if (newStatus !== task.status) {
     updateData.status = newStatus;
 
-    // Auto-set startDate when moving to "In Progress"
-    if (newStatus === 'In Progress' && !task.startDate) {
-      updateData.startDate = new Date();
+    // Moving OUT of Done: clear endDate, mark incomplete
+    if (oldStatus === 'Done' && newStatus !== 'Done') {
+      updateData.endDate = null;
+      updateData.isCompleted = false;
     }
 
-    // Auto-set endDate when moving to "Done"
-    if (newStatus === 'Done' && !task.endDate) {
-      updateData.endDate = new Date();
+    // Moving TO In Progress: set startDate if not set
+    if (newStatus === 'In Progress' && !task.startDate) {
+      updateData.startDate = new Date();
+      // No history entry for started per requirements
+    }
+
+    // Moving TO Done: set endDate and complete
+    if (newStatus === 'Done') {
+      const now = new Date();
+      updateData.endDate = now;
       updateData.isCompleted = true;
+      // If task never started, set startDate for lead time
+      if (!task.startDate) {
+        updateData.startDate = now;
+      }
+      // If no due date, set it to completion time
+      if (!task.dueDate && !data.dueDate) {
+        updateData.dueDate = now;
+      }
+    }
+
+    // Moving TO Backlog: clear dates for fresh start (optional: keep for history)
+    if (newStatus === null) {
+      // Keep startDate for history, but clear endDate
+      updateData.endDate = null;
+      updateData.isCompleted = false;
+    }
+
+    // Record status change
+    // Only log standalone status change when column did not change
+    if (!data.columnId || data.columnId === task.column.toString()) {
+      if (newStatus === 'Reopened') {
+        historyActions.push({
+          action: 'reopened',
+          fromStatus: oldStatus || 'Backlog',
+          toStatus: 'Reopened'
+        });
+      } else {
+        historyActions.push({
+          action: 'status_changed',
+          fromStatus: oldStatus || 'Backlog',
+          toStatus: newStatus || 'Backlog'
+        });
+      }
     }
   }
 
+  // Record column move (include status change if it happened together)
+  const columnChanged = data.columnId && data.columnId !== task.column.toString();
+  if (columnChanged) {
+    const moveMetadata: Record<string, any> = {};
+    if (newStatus === 'In Progress') {
+      moveMetadata.dueDate = data.dueDate || task.dueDate?.toISOString();
+    }
+
+    historyActions.push({
+      action: 'moved',
+      fromColumnId: task.column.toString(),
+      toColumnId: data.columnId,
+      fromStatus: oldStatus || 'Backlog',
+      toStatus: newStatus || 'Backlog',
+      metadata: Object.keys(moveMetadata).length ? moveMetadata : undefined
+    });
+  }
+
+  // Record field updates
+  if (data.title !== undefined && data.title !== task.title) {
+    historyActions.push({
+      action: 'updated',
+      field: 'title',
+      oldValue: task.title,
+      newValue: data.title
+    });
+  }
+  if (data.content !== undefined && data.content !== task.content) {
+    historyActions.push({
+      action: 'updated',
+      field: 'content',
+      oldValue: task.content ? 'has content' : 'empty',
+      newValue: data.content ? 'has content' : 'empty'
+    });
+  }
+  // No standalone history entry for due date changes
+  if (data.labels !== undefined && JSON.stringify(data.labels) !== JSON.stringify(task.labels)) {
+    historyActions.push({
+      action: 'updated',
+      field: 'labels',
+      oldValue: task.labels?.join(', '),
+      newValue: data.labels?.join(', ')
+    });
+  }
+
   const updated = await KanbanTask.findByIdAndUpdate(data.id, updateData, { new: true });
+
+  // Record all history actions
+  for (const historyAction of historyActions) {
+    await recordHistory({
+      taskId: task._id.toString(),
+      boardId: task.board.toString(),
+      action: historyAction.action,
+      userId: auth.userId!,
+      userEmail: auth.email,
+      field: historyAction.field,
+      oldValue: historyAction.oldValue,
+      newValue: historyAction.newValue,
+      fromColumnId: historyAction.fromColumnId,
+      toColumnId: historyAction.toColumnId,
+      fromStatus: historyAction.fromStatus,
+      toStatus: historyAction.toStatus,
+      metadata: historyAction.metadata
+    });
+  }
 
   return NextResponse.json(updated);
 }
@@ -221,6 +404,20 @@ export async function DELETE(req: NextRequest) {
     { column: task.column, parent: task.parent, order: { $gt: task.order } },
     { $inc: { order: -1 } }
   );
+
+  // Record deletion history
+  await recordHistory({
+    taskId: task._id.toString(),
+    boardId: task.board.toString(),
+    action: 'deleted',
+    userId: auth.userId!,
+    userEmail: auth.email,
+    metadata: {
+      title: task.title,
+      status: task.status,
+      wasCompleted: task.isCompleted
+    }
+  });
 
   await KanbanTask.findByIdAndDelete(data.id);
 

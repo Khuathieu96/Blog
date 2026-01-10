@@ -69,6 +69,12 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "Column not found" }, { status: 404 });
   }
 
+  // Prevent deleting default columns
+  const defaultTitles = ["backlog", "to do", "todo", "in progress", "done"];
+  if (defaultTitles.includes(column.title.toLowerCase())) {
+    return NextResponse.json({ error: "Default columns cannot be deleted" }, { status: 400 });
+  }
+
   const hasAccess = await checkBoardAccess(column.board.toString(), auth.userId!);
   if (!hasAccess) {
     return NextResponse.json({ error: "Access denied" }, { status: 403 });

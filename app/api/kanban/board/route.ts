@@ -54,9 +54,10 @@ export async function POST(req: NextRequest) {
 
   // Create default columns
   const defaultColumns = [
-    { title: "To Do", order: 0, color: "#e2e8f0" },
-    { title: "In Progress", order: 1, color: "#fef3c7" },
-    { title: "Done", order: 2, color: "#d1fae5" }
+    { title: "Backlog", order: 0, color: "#e2e8f0" },
+    { title: "To Do", order: 1, color: "#e2e8f0" },
+    { title: "In Progress", order: 2, color: "#fef3c7" },
+    { title: "Done", order: 3, color: "#d1fae5" }
   ];
 
   await KanbanColumn.insertMany(

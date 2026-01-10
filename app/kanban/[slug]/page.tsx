@@ -71,6 +71,9 @@ export default function KanbanBoardPage({
   const [loading, setLoading] = useState(true);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeColumn, setActiveColumn] = useState<Column | null>(null);
+  const [dragSourceColumnId, setDragSourceColumnId] = useState<string | null>(
+    null,
+  );
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [slug, setSlug] = useState<string>('');
   const [showDueDateModal, setShowDueDateModal] = useState(false);
@@ -148,7 +151,14 @@ export default function KanbanBoardPage({
       return;
     }
 
-    // Otherwise it's a task
+    // Otherwise it's a task - find and store the source column
+    const sourceColumn = columns.find((col) =>
+      col.tasks.some((t) => t._id === active.id),
+    );
+    if (sourceColumn) {
+      setDragSourceColumnId(sourceColumn._id);
+    }
+
     const task = columns
       .flatMap((col) => col.tasks)
       .find((c) => c._id === active.id);
@@ -212,10 +222,18 @@ export default function KanbanBoardPage({
     const { active, over } = event;
     const activeData = active.data.current;
 
+    // Store source column before clearing state
+    const sourceColumnId = dragSourceColumnId;
+
     setActiveTask(null);
     setActiveColumn(null);
+    setDragSourceColumnId(null);
 
-    if (!over) return;
+    if (!over) {
+      // Drag cancelled - reset board to original state
+      fetchBoard();
+      return;
+    }
 
     const activeId = active.id as string;
     const overId = over.id as string;
@@ -249,27 +267,26 @@ export default function KanbanBoardPage({
       return;
     }
 
-    // Handle task operations
-    const activeColumnObj = columns.find((col) =>
-      col.tasks.some((c) => c._id === activeId),
-    );
+    // Handle task operations - use sourceColumnId to get original column
+    const sourceColumn = columns.find((col) => col._id === sourceColumnId);
+    if (!sourceColumn) return;
 
-    if (!activeColumnObj) return;
+    // Find the task (might be in target column now due to dragOver)
+    const task =
+      activeTask ||
+      columns.flatMap((col) => col.tasks).find((t) => t._id === activeId);
 
-    const activeIndex = activeColumnObj.tasks.findIndex(
-      (c) => c._id === activeId,
-    );
-    const task = activeColumnObj.tasks[activeIndex];
+    if (!task) return;
 
     // Check if task moved to a different column
     const targetColumn = columns.find(
       (col) => col._id === overId || col.tasks.some((c) => c._id === overId),
     );
 
-    const isColumnChange =
-      targetColumn && targetColumn._id !== activeColumnObj._id;
+    // Use sourceColumnId for accurate column change detection
+    const isColumnChange = targetColumn && targetColumn._id !== sourceColumnId;
 
-    // Check if moving to "In Progress" column and task lacks dueDate
+    // Always show DueDate modal when moving to "In Progress" column
     if (isColumnChange) {
       const targetColTitle = targetColumn.title.toLowerCase().trim();
       const isInProgress =
@@ -277,8 +294,8 @@ export default function KanbanBoardPage({
         targetColTitle === 'inprogress' ||
         targetColTitle === 'progress';
 
-      if (isInProgress && !task.dueDate) {
-        // Store pending move and show modal
+      if (isInProgress) {
+        // Store pending move and show modal to set/confirm dueDate
         const overIndex = targetColumn.tasks.findIndex((c) => c._id === overId);
         setPendingMove({
           taskId: activeId,
@@ -293,13 +310,29 @@ export default function KanbanBoardPage({
       }
     }
 
-    // Handle normal reordering within same column
-    const overIndex = activeColumnObj.tasks.findIndex((c) => c._id === overId);
+    // Handle ordering and persist move
+    const destinationColumn = isColumnChange ? targetColumn! : sourceColumn;
 
-    if (activeIndex !== overIndex && overIndex >= 0) {
+    // Find task's current index in destination (due to dragOver visual updates)
+    const currentColumn = columns.find((col) =>
+      col.tasks.some((t) => t._id === activeId),
+    );
+    const activeIndex =
+      currentColumn?.tasks.findIndex((t) => t._id === activeId) ?? -1;
+
+    const overIndex = destinationColumn.tasks.findIndex(
+      (c) => c._id === overId,
+    );
+
+    if (
+      !isColumnChange &&
+      activeIndex !== overIndex &&
+      overIndex >= 0 &&
+      currentColumn
+    ) {
       setColumns((prev) =>
         prev.map((col) => {
-          if (col._id === activeColumnObj._id) {
+          if (col._id === currentColumn._id) {
             return {
               ...col,
               tasks: arrayMove(col.tasks, activeIndex, overIndex),
@@ -310,17 +343,36 @@ export default function KanbanBoardPage({
       );
     }
 
-    // Save to backend
     try {
-      await fetch('/api/kanban/task', {
+      const res = await fetch('/api/kanban/task', {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify({
           id: activeId,
-          columnId: task.column,
-          order: overIndex >= 0 ? overIndex : activeColumnObj.tasks.length - 1,
+          columnId: destinationColumn._id,
+          order:
+            overIndex >= 0
+              ? overIndex
+              : Math.max(0, destinationColumn.tasks.length - 1),
         }),
       });
+
+      if (res.ok) {
+        const updated = await res.json();
+        // Update selectedTask if this is the selected one
+        if (selectedTask?._id === updated._id) {
+          setSelectedTask(updated);
+        }
+        // Update columns state directly with the updated task data
+        setColumns((prev) =>
+          prev.map((col) => ({
+            ...col,
+            tasks: col.tasks.map((t) =>
+              t._id === updated._id ? { ...t, ...updated } : t,
+            ),
+          })),
+        );
+      }
     } catch (error) {
       console.error('Failed to update task position:', error);
       fetchBoard();
@@ -386,6 +438,10 @@ export default function KanbanBoardPage({
       });
 
       if (res.ok) {
+        const updated = await res.json();
+        if (selectedTask?._id === updated._id) {
+          setSelectedTask(updated);
+        }
         setShowDueDateModal(false);
         setPendingMove(null);
         fetchBoard();
@@ -417,6 +473,26 @@ export default function KanbanBoardPage({
       }
     } catch (error) {
       console.error('Failed to delete task:', error);
+    }
+  };
+
+  const deleteSubtask = async (taskId: string) => {
+    try {
+      const res = await fetch('/api/kanban/task', {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ id: taskId }),
+      });
+      if (res.ok) {
+        setSelectedTask((prev) =>
+          prev
+            ? { ...prev, subtasks: prev.subtasks?.filter((s) => s._id !== taskId) }
+            : prev,
+        );
+        fetchBoard();
+      }
+    } catch (error) {
+      console.error('Failed to delete subtask:', error);
     }
   };
 
@@ -452,6 +528,13 @@ export default function KanbanBoardPage({
   };
 
   const deleteColumn = async (columnId: string) => {
+    const column = columns.find((c) => c._id === columnId);
+    const defaultTitles = ['backlog', 'to do', 'todo', 'in progress', 'done'];
+    if (column && defaultTitles.includes(column.title.toLowerCase())) {
+      alert('Default columns cannot be deleted.');
+      return;
+    }
+
     if (!confirm('Delete this column and all its tasks?')) return;
 
     try {
@@ -594,6 +677,7 @@ export default function KanbanBoardPage({
                 addTask(column._id, title, selectedTask._id);
               }
             }}
+            onDeleteSubtask={deleteSubtask}
           />
         )}
       </div>
@@ -604,6 +688,7 @@ export default function KanbanBoardPage({
         onClose={handleDueDateCancel}
         onConfirm={handleDueDateConfirm}
         taskTitle={pendingMove?.task?.title || ''}
+        currentDueDate={pendingMove?.task?.dueDate}
       />
     </div>
   );

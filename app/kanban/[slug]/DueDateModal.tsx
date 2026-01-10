@@ -5,6 +5,7 @@ interface DueDateModalProps {
   onClose: () => void;
   onConfirm: (dueDate: Date) => void;
   taskTitle: string;
+  currentDueDate?: string; // Existing dueDate to pre-fill
 }
 
 export default function DueDateModal({
@@ -12,6 +13,7 @@ export default function DueDateModal({
   onClose,
   onConfirm,
   taskTitle,
+  currentDueDate,
 }: DueDateModalProps) {
   if (!isOpen) return null;
 
@@ -23,6 +25,9 @@ export default function DueDateModal({
       onConfirm(new Date(dueDateStr));
     }
   };
+
+  // Format existing date for input default value
+  const defaultDate = currentDueDate ? currentDueDate.split('T')[0] : '';
 
   return (
     <div
@@ -52,11 +57,13 @@ export default function DueDateModal({
         onClick={(e) => e.stopPropagation()}
       >
         <h2 style={{ marginTop: 0, marginBottom: '16px', fontSize: '20px' }}>
-          Set Due Date
+          {currentDueDate ? 'Confirm Due Date' : 'Set Due Date'}
         </h2>
         <p style={{ marginBottom: '20px', color: '#666' }}>
-          Moving <strong>"{taskTitle}"</strong> to In Progress. Please set an
-          estimated due date.
+          Moving <strong>"{taskTitle}"</strong> to In Progress.{' '}
+          {currentDueDate
+            ? 'Please confirm or update the due date.'
+            : 'Please set an estimated due date.'}
         </p>
 
         <form onSubmit={handleSubmit}>
@@ -72,6 +79,7 @@ export default function DueDateModal({
               id='dueDate'
               name='dueDate'
               required
+              defaultValue={defaultDate}
               min={new Date().toISOString().split('T')[0]}
               style={{
                 width: '100%',
@@ -113,7 +121,7 @@ export default function DueDateModal({
                 fontSize: '14px',
               }}
             >
-              Confirm
+              {currentDueDate ? 'Confirm & Start' : 'Set & Start'}
             </button>
           </div>
         </form>

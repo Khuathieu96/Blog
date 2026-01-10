@@ -59,6 +59,22 @@ export async function GET(
     .sort({ order: 1 })
     .lean();
 
+  // Helper to compute status from column title (for legacy tasks without status)
+  function getStatusFromColumnTitle(title: string): string | null {
+    const normalized = title.toLowerCase().trim();
+    if (normalized === 'backlog') return null;
+    if (normalized === 'todo' || normalized === 'to do') return 'Todo';
+    if (normalized === 'in progress' || normalized === 'inprogress' || normalized === 'progress') return 'In Progress';
+    if (normalized === 'done' || normalized === 'completed') return 'Done';
+    return title;
+  }
+
+  // Create column lookup for status computation
+  const columnMap = new Map<string, any>();
+  columns.forEach((col: any) => {
+    columnMap.set(col._id.toString(), col);
+  });
+
   // Organize tasks by column and nest subtasks
   const tasksByColumn: Record<string, any[]> = {};
   const taskMap = new Map<string, any>();
@@ -69,7 +85,15 @@ export async function GET(
   });
 
   tasks.forEach((task: any) => {
-    taskMap.set(task._id.toString(), { ...task, subtasks: [] });
+    // Compute status from column if not set (for legacy tasks)
+    let taskStatus = task.status;
+    if (taskStatus === undefined || taskStatus === null) {
+      const col = columnMap.get(task.column.toString());
+      if (col) {
+        taskStatus = getStatusFromColumnTitle(col.title);
+      }
+    }
+    taskMap.set(task._id.toString(), { ...task, status: taskStatus, subtasks: [] });
   });
 
   // Second pass: nest subtasks and organize by column

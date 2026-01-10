@@ -396,15 +396,17 @@ export default function HomePageClient({ articles }: { articles: Article[] }) {
                           onClick={(e) => handleEditArticle(a, e)}
                           title='Edit article'
                           className='article-icon-btn'
+                          style={{ color: '#2563eb' }}
                         >
-                          ✎
+                          ✏
                         </button>
                         <button
                           onClick={(e) => handleDeleteArticle(a, e)}
                           title='Delete article'
                           className='article-icon-btn'
+                          style={{ color: '#dc2626' }}
                         >
-                          ✕
+                          🗑
                         </button>
                       </div>
                     )}

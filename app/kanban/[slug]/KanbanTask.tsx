@@ -50,17 +50,50 @@ export function KanbanTask({ task, onClick, isDragging }: KanbanTaskProps) {
       {...attributes}
       {...listeners}
     >
-      {/* Labels */}
-      {task.labels && task.labels.length > 0 && (
-        <div
-          style={{
-            display: 'flex',
-            gap: '0.25rem',
-            marginBottom: '0.5rem',
-            flexWrap: 'wrap',
-          }}
-        >
-          {task.labels.map((label, i) => (
+      {/* Status Badge & Labels Row */}
+      <div
+        style={{
+          display: 'flex',
+          gap: '0.25rem',
+          marginBottom: '0.5rem',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+        }}
+      >
+        {/* Status Badge - only show for special statuses */}
+        {task.status === 'Reopened' && (
+          <span
+            style={{
+              padding: '0.125rem 0.5rem',
+              fontSize: '0.625rem',
+              fontWeight: 600,
+              borderRadius: '0.1875rem',
+              background: '#fef3c7',
+              color: '#92400e',
+              border: '1px solid #fcd34d',
+            }}
+          >
+            ↩ REOPENED
+          </span>
+        )}
+        {task.status === 'In Progress' && task.startDate && (
+          <span
+            style={{
+              padding: '0.125rem 0.5rem',
+              fontSize: '0.625rem',
+              fontWeight: 500,
+              borderRadius: '0.1875rem',
+              background: '#fef3c7',
+              color: '#92400e',
+            }}
+          >
+            ⏱ In Progress
+          </span>
+        )}
+        {/* Labels */}
+        {task.labels &&
+          task.labels.length > 0 &&
+          task.labels.map((label, i) => (
             <span
               key={i}
               style={{
@@ -74,8 +107,7 @@ export function KanbanTask({ task, onClick, isDragging }: KanbanTaskProps) {
               {label}
             </span>
           ))}
-        </div>
-      )}
+      </div>
 
       {/* Title */}
       <div
@@ -97,17 +129,35 @@ export function KanbanTask({ task, onClick, isDragging }: KanbanTaskProps) {
           gap: '0.75rem',
           fontSize: '0.75rem',
           color: '#64748b',
+          flexWrap: 'wrap',
         }}
       >
-        {/* Due date */}
+        {/* Due date - with overdue styling */}
         {task.dueDate && (
           <span
             style={{
               color:
-                new Date(task.dueDate) < new Date() ? '#ef4444' : '#64748b',
+                !task.isCompleted && new Date(task.dueDate) < new Date()
+                  ? '#ef4444'
+                  : '#64748b',
+              fontWeight:
+                !task.isCompleted && new Date(task.dueDate) < new Date()
+                  ? 600
+                  : 400,
             }}
+            title={`Due: ${new Date(task.dueDate).toLocaleString()}`}
           >
             📅 {new Date(task.dueDate).toLocaleDateString()}
+          </span>
+        )}
+
+        {/* Completed date with cycle time */}
+        {task.isCompleted && task.endDate && (
+          <span
+            style={{ color: '#10b981' }}
+            title={`Completed: ${new Date(task.endDate).toLocaleString()}`}
+          >
+            ✓ Done
           </span>
         )}
 

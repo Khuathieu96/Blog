@@ -135,7 +135,9 @@ export function KanbanColumn({
             </span>
           </h3>
         )}
-        {column.title.toLowerCase() !== 'backlog' && (
+        {!['backlog', 'to do', 'todo', 'in progress', 'done'].includes(
+          column.title.toLowerCase(),
+        ) && (
           <button
             onClick={() => onDeleteColumn(column._id)}
             style={{
