@@ -79,7 +79,7 @@ export default function RegistersPage() {
       ) : (
         <div className='registrations-list'>
           {registrations.map((reg) => (
-            <div key={reg._id} className='registration-card'>
+            <div key={reg._id} className='registration-task'>
               <div className='reg-info'>
                 <div className='reg-name'>{reg.name}</div>
                 <div className='reg-email'>{reg.email}</div>
@@ -136,7 +136,7 @@ export default function RegistersPage() {
           gap: 12px;
         }
 
-        .registration-card {
+        .registration-task {
           padding: 20px;
           border: 1px solid #e5e5e5;
           border-radius: 8px;
@@ -144,7 +144,7 @@ export default function RegistersPage() {
           transition: all 0.2s;
         }
 
-        .registration-card:hover {
+        .registration-task:hover {
           border-color: #d4d4d4;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
         }

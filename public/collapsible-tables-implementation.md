@@ -128,7 +128,7 @@ transition: "height 300ms cubic-bezier(0.4, 0, 0.2, 1)"
 
 ### Issue 2: Wrong Height Direction
 
-**Problem:** When ProthesisTable expanded, OrderTable also expanded, causing total height overflow and scrollbars.
+**Problem:** When ProthesisTable expanded, OrderTable also expanded, causing total height overflow and gitscrollbars.
 
 **Fix:** Inverted the height logic:
 

@@ -20,6 +20,7 @@ interface AuthContextType {
   logout: () => void;
   isAuthenticated: boolean;
   getAuthHeaders: () => Record<string, string>;
+  handleUnauthorized: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,12 +30,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Load user from localStorage on mount
+    // Load user from localStorage on mount and validate token
     const storedUser = localStorage.getItem('user');
-    if (storedUser) {
+    const storedToken = localStorage.getItem('authToken');
+
+    if (storedUser && storedToken) {
       try {
-        setUser(JSON.parse(storedUser));
+        // Decode token to check expiration (format: base64(email:timestamp))
+        const decoded = atob(storedToken);
+        const [email, timestamp] = decoded.split(':');
+
+        if (email && timestamp) {
+          const tokenTime = parseInt(timestamp);
+          const now = Date.now();
+          const hoursDiff = (now - tokenTime) / (1000 * 60 * 60);
+
+          // Token expires after 24 hours
+          if (hoursDiff <= 24) {
+            setUser(JSON.parse(storedUser));
+          } else {
+            // Token expired, clear everything
+            localStorage.removeItem('user');
+            localStorage.removeItem('authToken');
+          }
+        } else {
+          // Invalid token format
+          localStorage.removeItem('user');
+          localStorage.removeItem('authToken');
+        }
       } catch (e) {
+        // Error parsing, clear everything
         localStorage.removeItem('user');
         localStorage.removeItem('authToken');
       }
@@ -58,11 +83,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const token = localStorage.getItem('authToken');
     if (token) {
       return {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
       };
     }
     return { 'Content-Type': 'application/json' };
+  };
+
+  const handleUnauthorized = () => {
+    // Clear auth state when we get 401 responses
+    logout();
   };
 
   return (
@@ -74,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         isAuthenticated: !!user,
         getAuthHeaders,
+        handleUnauthorized,
       }}
     >
       {children}

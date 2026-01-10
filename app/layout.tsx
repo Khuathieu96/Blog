@@ -29,12 +29,9 @@ export default function RootLayout({
           <Navbar />
           <main
             style={{
-              padding: '20px',
               flex: 1,
               overflow: 'hidden',
-              maxWidth: '800px',
               width: '100%',
-              margin: '0 auto',
               boxSizing: 'border-box',
             }}
           >

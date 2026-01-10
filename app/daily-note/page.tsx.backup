@@ -212,7 +212,7 @@ export default function DailyNotePage() {
           </div>
         ) : (
           notes.map((note) => (
-            <div key={note._id} className='note-card'>
+            <div key={note._id} className='note-task'>
               <div className='note-content' onClick={() => handleEdit(note)}>
                 <div className='note-header'>{note.header}</div>
                 <div className='note-preview'>{getPreview(note.content)}</div>
@@ -341,7 +341,7 @@ export default function DailyNotePage() {
           font-size: 14px;
         }
 
-        .note-card {
+        .note-task {
           display: flex;
           align-items: flex-start;
           border: 1px solid #eee;
@@ -350,7 +350,7 @@ export default function DailyNotePage() {
           transition: background-color 0.2s;
         }
 
-        .note-card:hover {
+        .note-task:hover {
           background: #fafafa;
         }
 

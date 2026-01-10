@@ -491,7 +491,7 @@ export default function DailyNotePage() {
                     <div className='empty-folder'>No notes in this folder</div>
                   ) : (
                     folderNotes.map((note) => (
-                      <div key={note._id} className='note-card'>
+                      <div key={note._id} className='note-task'>
                         <div
                           className='note-content'
                           onClick={() => handleEdit(note)}
@@ -790,7 +790,7 @@ export default function DailyNotePage() {
           font-style: italic;
         }
 
-        .note-card {
+        .note-task {
           display: flex;
           align-items: flex-start;
           padding: 12px 16px;
@@ -798,11 +798,11 @@ export default function DailyNotePage() {
           transition: background-color 0.2s;
         }
 
-        .note-card:last-child {
+        .note-task:last-child {
           border-bottom: none;
         }
 
-        .note-card:hover {
+        .note-task:hover {
           background: #fafafa;
         }
 

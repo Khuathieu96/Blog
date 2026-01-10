@@ -59,6 +59,11 @@ export default function Navbar() {
               Note
             </Link>
           )}
+          {isAuthenticated && (
+            <Link href='/kanban' className='nav-icon' title='Kanban Boards'>
+              Kanban
+            </Link>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
           {isAuthenticated && (
